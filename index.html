@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coloring Map</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Crect width=%2740%27 height=%2740%27 rx=%2711%27 fill=%27%23FFC93C%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+:root{--ink:#1E1B18;--paper:#FFFBF2;--accent:#FFC93C;--accent-soft:#FFC93C66;--coral:#FF8A65;--muted:#5B534B;--track:#EDE5D6}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:'Baloo 2','Trebuchet MS',system-ui,sans-serif}
+button{font:inherit;color:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.app{min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 20px;min-height:64px;background:#fff;border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:800;letter-spacing:-.01em}
+.search{position:relative;flex:0 1 360px;min-width:200px;margin:0}
+.search svg{position:absolute;left:16px;top:14px}
+.grow{flex:1}
+.work{display:flex;flex-wrap:wrap;flex:1;min-height:0}
+aside{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column;gap:16px;padding:20px;border-right:2px solid var(--ink);background:var(--paper)}
+main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(100vh - 68px);background:#fff}
+#map{position:absolute;inset:0;background:#fff;font-family:inherit}
+#map.tool-text{cursor:crosshair}
+#map .leaflet-interactive{cursor:inherit}
+#map.tool-move .leaflet-interactive{cursor:pointer}
+#map.leaflet-drag-target,#map.leaflet-grab{cursor:grab}
+@media (max-width:860px){
+  aside{max-width:none;flex-basis:100%;border-right:0;border-bottom:2px solid var(--ink);padding:14px 16px}
+  main{flex-basis:100%;height:max(480px,70vh)}
+  .cards{display:grid;grid-template-columns:1fr;gap:14px}
+}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:4px 4px 4px 2px;background:none;border:0;cursor:pointer;font-size:18px;font-weight:700;text-align:left}
+.sw{position:relative;flex:none;width:54px;height:32px;border-radius:999px;border:2px solid var(--ink);background:var(--track);transition:background .15s}
+.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--ink);transition:left .15s}
+.toggle[aria-pressed="true"] .sw{background:var(--accent)}
+.toggle[aria-pressed="true"] .sw i{left:25px}
+.chip{display:flex;align-items:center;gap:8px;min-height:52px;padding:6px 12px;border:2px solid var(--ink);border-radius:16px;background:#fff;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 var(--ink);text-align:left;line-height:1.1}
+.chip[aria-pressed="true"]{background:var(--accent)}
+.chip:active,.seg button:active,.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.seg{display:flex;gap:6px;padding:5px;border:2px solid var(--ink);border-radius:18px;background:#fff}
+.seg button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:48px;padding:0 12px;border:0;border-radius:12px;background:none;font-size:16px;font-weight:700;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);box-shadow:inset 0 0 0 2px var(--ink)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border:2px solid var(--ink);border-radius:16px;background:#fff;box-shadow:0 3px 0 var(--ink);font-size:18px;font-weight:800;cursor:pointer}
+.icon-btn{width:48px;padding:0}
+.btn[aria-pressed="true"]{background:var(--accent)}
+.slide{display:flex;align-items:center;gap:10px;padding:0 2px 10px}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:32px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:99px;background:var(--track);border:2px solid var(--ink)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--accent);border:2px solid var(--ink);margin-top:-11px}
+input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:var(--track);border:2px solid var(--ink)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--accent);border:2px solid var(--ink)}
+.field{width:100%;height:46px;padding:0 14px;border:2px solid var(--ink);border-radius:14px;background:var(--paper);font:inherit;font-size:18px;font-weight:600;color:var(--ink)}
+.field:focus,.btn:focus-visible,.chip:focus-visible,.seg button:focus-visible,.toggle:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.search .field{height:48px;padding-left:46px;border-radius:999px}
+.card{display:flex;flex-direction:column;gap:6px;padding:16px;border:2px solid var(--ink);border-radius:22px;background:#fff}
+.card h2{margin:0 0 4px;font-size:15px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.cards{display:flex;flex-direction:column;gap:16px}
+
+/* map overlays */
+.tools{position:absolute;left:20px;top:20px;z-index:1000;display:flex;gap:8px;padding:6px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:0 3px 0 var(--ink)}
+.tools .btn{box-shadow:none;border-radius:14px}
+.pageseg{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:1000;box-shadow:0 3px 0 var(--ink)}
+.zoom{position:absolute;right:20px;bottom:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.frame{position:absolute;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:left .3s,top .3s,width .3s,height .3s}
+.frame .tag{position:absolute;top:-36px;right:-3px;padding:5px 12px 3px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;font-weight:700;white-space:nowrap}
+.pop{position:absolute;z-index:1100;width:250px;padding:14px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:0 5px 0 var(--ink);display:flex;flex-direction:column;gap:10px}
+.pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pop-head span{font-size:24px;font-weight:800}
+.pop label{font-size:15px;font-weight:700;color:var(--muted)}
+
+/* labels (Leaflet divIcons) */
+.lbl-wrap{width:0!important;height:0!important;margin:0!important;background:none;border:0;pointer-events:none}
+.lbl{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;line-height:1;pointer-events:none}
+.nm{font-weight:700;font-size:12px;letter-spacing:.02em;color:var(--ink);text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
+.hollow .nm{color:#fff;-webkit-text-stroke:1.1px var(--ink);paint-order:stroke fill;font-weight:800;font-size:14px;letter-spacing:.04em;text-shadow:none}
+.tb{display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border:1.5px solid var(--ink);border-radius:999px;background:#fff;font-size:12px;font-weight:800}
+.mine{font-size:13px;font-weight:700;background:#fff;border:1.5px dashed var(--ink);border-radius:8px;padding:2px 7px 1px}
+.cap{position:absolute;left:0;top:0;width:15px;height:15px;transform:translate(-50%,-50%);pointer-events:none}
+.ft-wrap{width:0!important;height:0!important;margin:0!important;background:none;border:0}
+.ft{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;gap:2px;padding:2px 4px 0 2px;border:2px dashed var(--ink);border-radius:12px;background:#fff;font-size:20px;font-weight:800;white-space:nowrap;line-height:1.2;color:var(--ink)}
+.ft-t{min-width:2ch;padding:2px 6px 0;outline:0;cursor:text}
+.ft:focus-within{box-shadow:0 0 0 3px var(--accent)}
+.ft-grip,.ft-x{flex:none;width:24px;height:28px;display:flex;align-items:center;justify-content:center;padding:0;border:0;background:none;cursor:pointer}
+.ft-grip{cursor:move;touch-action:none}
+.ft-x{border-radius:50%}
+.ft-x:hover{background:var(--accent-soft)}
+
+/* print (mirrored by body.printing so it can be previewed) */
+html:has(body.printing),body.printing{background:#fff}
+body.printing header,body.printing aside,body.printing .tools,body.printing .pageseg,body.printing .zoom,body.printing .frame,body.printing .pop,body.printing .ft-grip,body.printing .ft-x{display:none!important}
+body.printing .app{display:block;min-height:0}
+body.printing .work{display:block}
+body.printing main{position:absolute;left:0;top:0;width:auto;height:auto;overflow:visible;background:#fff;border:0}
+body.printing #map{position:relative;inset:auto;width:var(--pw);height:var(--ph);cursor:default}
+body.printing .ft{box-shadow:none!important;border:0!important;background:transparent!important;padding:0}
+body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+@media print{
+  html,body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="app" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="window.app && window.app.sync({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
+
+<header>
+  <div class="brand">
+    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="11" fill="#FFC93C" stroke="#1E1B18" stroke-width="2"/><path d="M9 13l7-3 8 3 7-3v17l-7 3-8-3-7 3z" fill="#fff" stroke="#1E1B18" stroke-width="2" stroke-linejoin="round"/><path d="M16 10v17M24 13v17" stroke="#1E1B18" stroke-width="2"/></svg>
+    <span>Coloring Map</span>
+  </div>
+  <form class="search" role="search" data-on:submit="evt.preventDefault(); window.app.search($query)">
+    <label for="place" class="sr">Find a place</label>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="place" class="field" type="search" placeholder="Find a place" autocomplete="off" list="places" data-bind:query>
+    <datalist id="places"></datalist>
+  </form>
+  <div class="grow"></div>
+  <button class="btn" id="printBtn" style="background:#FF8A65;font-size:20px;padding:0 22px" data-on:click="window.app.print()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z" fill="#fff"/></svg>
+    <span id="printLbl">Print</span>
+  </button>
+</header>
+
+<div class="work">
+<aside>
+ <div class="cards">
+  <section class="card" aria-labelledby="h-lines">
+    <h2 id="h-lines">Lines</h2>
+    <button class="toggle" data-attr:aria-pressed="($showCountries) ? 'true' : 'false'" data-on:click="$showCountries = !$showCountries">Country lines <span class="sw"><i></i></span></button>
+    <label class="slide" data-show="$showCountries"><span class="sr">Country line thickness</span>
+      <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
+      <input type="range" min="0.5" max="6" step="0.25" data-bind="wCountry">
+      <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
+    </label>
+    <button class="toggle" data-attr:aria-pressed="($showStates) ? 'true' : 'false'" data-on:click="$showStates = !$showStates">State lines <span class="sw"><i></i></span></button>
+    <label class="slide" data-show="$showStates"><span class="sr">State line thickness</span>
+      <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
+      <input type="range" min="0.5" max="6" step="0.25" data-bind="wState">
+      <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
+    </label>
+    <button class="toggle" data-attr:aria-pressed="($showCounties) ? 'true' : 'false'" data-on:click="$showCounties = !$showCounties">County lines <span class="sw"><i></i></span></button>
+    <label class="slide" data-show="$showCounties"><span class="sr">County line thickness</span>
+      <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
+      <input type="range" min="0.25" max="3" step="0.25" data-bind="wCounty">
+      <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
+    </label>
+    <div class="toggle" style="cursor:default" aria-hidden="true">Outline</div>
+    <label class="slide"><span class="sr">Outline thickness</span>
+      <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
+      <input type="range" min="1" max="8" step="0.5" data-bind="wNation">
+      <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
+    </label>
+  </section>
+
+  <section class="card" aria-labelledby="h-labels">
+    <h2 id="h-labels">Labels</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <button class="chip" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>
+        Names</button>
+      <button class="chip" data-attr:aria-pressed="($capitals) ? 'true' : 'false'" data-on:click="$capitals = !$capitals">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1-4.5-4.2 6.1-.8z"/></svg>
+        Capitals</button>
+      <button class="chip" data-attr:aria-pressed="($tornado) ? 'true' : 'false'" data-on:click="$tornado = !$tornado">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18M5 9h13M8 13h9M10 17h5M12 21h1"/></svg>
+        Tornadoes</button>
+      <button class="chip" data-attr:aria-pressed="($mine) ? 'true' : 'false'" data-on:click="$mine = !$mine">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+        My words</button>
+    </div>
+    <div style="height:6px"></div>
+    <div class="seg" role="group" aria-label="Letters">
+      <button data-attr:aria-pressed="(!$hollow) ? 'true' : 'false'" data-on:click="$hollow = false"><span style="font-size:22px;font-weight:800">Aa</span> Solid</button>
+      <button data-attr:aria-pressed="($hollow) ? 'true' : 'false'" data-on:click="$hollow = true"><span style="font-size:22px;font-weight:800;color:#fff;-webkit-text-stroke:1.4px #1E1B18;paint-order:stroke fill">Aa</span> Hollow</button>
+    </div>
+  </section>
+ </div>
+</aside>
+
+<main id="stage">
+  <div id="map" role="application" aria-label="World map"></div>
+  <div class="frame" id="frame"><span class="tag" data-text="$frameTag"></span></div>
+
+  <div class="pop" data-show="$popOpen" style="display:none" data-style:left="$popX + 'px'" data-style:top="$popY + 'px'" role="dialog" aria-label="Place words">
+    <div class="pop-head">
+      <span data-text="$popName"></span>
+      <button class="btn icon-btn" aria-label="Close" style="height:40px;width:40px;border-radius:12px;box-shadow:none" data-on:click="window.app.closePop()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <label for="popWords">My words</label>
+    <input id="popWords" class="field" type="text" autocomplete="off" data-bind="popWords" data-on:input="window.app.setWords($popKey, evt.target.value)">
+  </div>
+
+  <div class="tools" role="group" aria-label="Tools">
+    <button class="btn icon-btn" aria-label="Move the map" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>
+    </button>
+    <button class="btn" style="font-size:17px;padding:0 14px" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = 'text'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>
+      Add words
+    </button>
+  </div>
+
+  <div class="seg pageseg" role="group" aria-label="Page">
+    <button data-attr:aria-pressed="($orient == 'auto') ? 'true' : 'false'" data-on:click="$orient = 'auto'">Auto</button>
+    <button aria-label="Landscape" data-attr:aria-pressed="($orient == 'landscape') ? 'true' : 'false'" data-on:click="$orient = 'landscape'">
+      <svg width="30" height="24" viewBox="0 0 30 24" aria-hidden="true"><rect x="2" y="3" width="26" height="18" rx="3" fill="#fff" stroke="#1E1B18" stroke-width="2.4"/></svg>
+    </button>
+    <button aria-label="Portrait" data-attr:aria-pressed="($orient == 'portrait') ? 'true' : 'false'" data-on:click="$orient = 'portrait'">
+      <svg width="24" height="28" viewBox="0 0 24 28" aria-hidden="true"><rect x="3" y="2" width="18" height="24" rx="3" fill="#fff" stroke="#1E1B18" stroke-width="2.4"/></svg>
+    </button>
+  </div>
+
+  <div class="zoom">
+    <button class="btn icon-btn" aria-label="Zoom in" data-on:click="window.app.map.zoomIn()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="btn icon-btn" aria-label="Zoom out" data-on:click="window.app.map.zoomOut()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+    </button>
+  </div>
+</main>
+</div>
+</div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script type="module" src="vendor/datastar.js"></script>
+<script type="module">
+import { mergePatch, root } from './vendor/datastar.js';
+
+const INK = '#1E1B18';
+const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
+const WORLD_BOUNDS = L.latLngBounds([-56, -180], [78, 180]);
+const STATE_Z = 4;
+const FIT = {
+  'France': [[41.2, -5.5], [51.2, 9.8]], 'Spain': [[35.9, -9.5], [43.9, 4.5]], 'Portugal': [[36.8, -9.6], [42.2, -6.1]],
+  'Norway': [[57.9, 4.5], [71.3, 31.5]], 'Netherlands': [[50.7, 3.2], [53.6, 7.3]], 'Denmark': [[54.5, 8], [57.8, 15.2]],
+  'Chile': [[-56, -76], [-17.5, -66]], 'Ecuador': [[-5.1, -81.1], [1.5, -75.2]], 'United States of America': [[24.3, -125.2], [49.6, -66.6]]
+};
+const FIT_OPTS = { 'Russia': { minLng: 0 }, 'Fiji': { minLng: 0 } };
+const STAR = '<svg class="cap" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.8 5.8 6.4.9-4.6 4.4 1.1 6.3L12 16.9l-5.7 3 1.1-6.3-4.6-4.4 6.4-.9z" fill="#ffffff" stroke="#1E1B18" stroke-width="2.2" stroke-linejoin="round"/></svg>';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const patch = (o) => mergePatch(o);
+
+const map = L.map('map', {
+  zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
+  wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: [[-80, -200], [85, 200]], maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
+  worldCopyJump: false, doubleClickZoom: false
+});
+map.setView([20, 0], 2);
+
+const app = window.app = {
+  map, s: null, data: {}, placeLayers: {}, labelMarkers: {}, capMarkers: [], places: [], words: {}, freeTags: [],
+  selected: null, countyLayer: null, countiesLoading: false, frameRect: null, printing: false, saved: null,
+  layers: {},
+
+  /* ---------- layout / frame ---------- */
+  effOrient() {
+    const o = this.s ? this.s.orient : 'auto';
+    if (o !== 'auto') return o;
+    const sz = map.getSize();
+    return sz.x > sz.y ? 'landscape' : 'portrait';
+  },
+  layoutFrame(refit) {
+    const sz = map.getSize();
+    const eff = this.effOrient();
+    const r = eff === 'landscape' ? 11 / 8.5 : 8.5 / 11;
+    const top = 56, bottom = 84, side = 24;
+    const maxW = Math.max(120, sz.x - side * 2), maxH = Math.max(120, sz.y - top - bottom);
+    let w = maxW, h = w / r;
+    if (h > maxH) { h = maxH; w = h * r; }
+    const left = (sz.x - w) / 2, t = top + (maxH - h) / 2;
+    this.frameRect = { left, top: t, width: w, height: h };
+    const f = document.getElementById('frame');
+    Object.assign(f.style, { left: left + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
+    const auto = this.s && this.s.orient === 'auto';
+    patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
+    const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
+    map.setMinZoom(Math.max(0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
+    if (refit) this.fitTo(WORLD_BOUNDS, false);
+  },
+  frameBounds() {
+    const f = this.frameRect;
+    const sw = map.containerPointToLatLng([f.left, f.top + f.height]);
+    const ne = map.containerPointToLatLng([f.left + f.width, f.top]);
+    return L.latLngBounds(sw, ne);
+  },
+  fitTo(bounds, animate = true) {
+    const f = this.frameRect, sz = map.getSize();
+    const pad = L.point(sz.x - f.width * 0.94, sz.y - f.height * 0.94);
+    const z = map.getBoundsZoom(bounds, false, pad);
+    const zz = Math.min(z, 10);
+    const pa = map.project(bounds.getSouthWest(), zz), pb = map.project(bounds.getNorthEast(), zz);
+    map.setView(map.unproject(pa.add(pb).divideBy(2), zz), zz, { animate });
+    // frame is centred horizontally; shift vertically if frame is off-centre
+    const dy = (f.top + f.height / 2) - sz.y / 2;
+    if (dy) map.panBy([0, -dy], { animate: false });
+  },
+
+  /* ---------- sync from Datastar signals ---------- */
+  sync(s) {
+    const prev = this.s;
+    this.s = s;
+    const el = document.getElementById('map');
+    el.classList.toggle('hollow', s.hollow);
+    el.classList.toggle('tool-text', s.tool === 'text');
+    el.classList.toggle('tool-move', s.tool === 'move');
+    const L_ = this.layers;
+    if (L_.states) {
+      s.showCountries ? L_.borders.addTo(map) : L_.borders.remove();
+      L_.borders.setStyle({ weight: s.wCountry });
+      for (const k of ['stateMesh', 'provinces']) { s.showStates ? L_[k].addTo(map) : L_[k].remove(); L_[k].setStyle({ weight: s.wState }); }
+      L_.nation.setStyle({ weight: s.wNation });
+      L_.coast.setStyle({ weight: s.wNation });
+    }
+    if (s.showCounties && !this.countyLayer && !this.countiesLoading) this.loadCounties();
+    if (this.countyLayer) {
+      s.showCounties ? this.countyLayer.addTo(map) : this.countyLayer.remove();
+      this.countyLayer.setStyle({ weight: s.wCounty });
+    }
+    if (L_.states) {
+      if (this.countyLayer && s.showCounties) this.countyLayer.bringToBack();
+      L_.states.bringToBack(); L_.countries.bringToBack();
+      for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
+    }
+    if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
+    this.renderLabels();
+  },
+  async loadCounties() {
+    this.countiesLoading = true;
+    try {
+      const topo = await (await fetch('data/counties-10m.json')).json();
+      topo.objects.counties.geometries = topo.objects.counties.geometries.filter((g) => +String(g.id).padStart(5, '0').slice(0, 2) < 60);
+      const mesh = topojson.mesh(topo, topo.objects.counties, (a, b) => a !== b && String(a.id).slice(0, 2) === String(b.id).slice(0, 2));
+      this.countyLayer = L.geoJSON(mesh, { style: { color: INK, weight: this.s.wCounty, fill: false, lineJoin: 'round', lineCap: 'round' }, interactive: false, smoothFactor: 1 });
+      this.sync(this.s);
+    } catch (e) { console.error('counties failed', e); }
+    this.countiesLoading = false;
+  },
+
+  /* ---------- labels ---------- */
+  labelHtml(key, text, tornadoes) {
+    const s = this.s;
+    let h = '';
+    if (text) h += `<span class="nm">${esc(text)}</span>`;
+    if (s.tornado && tornadoes != null) h += `<span class="tb">${tornadoes}</span>`;
+    const w = this.words[key];
+    if (s.mine && w) h += `<span class="mine">${esc(w)}</span>`;
+    return h;
+  },
+  setLbl(m, h) {
+    if (m._key === h) return;
+    m._key = h;
+    m.setIcon(L.divIcon({ className: 'lbl-wrap', html: h ? `<div class="lbl">${h}</div>` : '', iconSize: [0, 0] }));
+  },
+  renderLabels() {
+    const s = this.s; if (!s || !this.data.labels) return;
+    const z = map.getZoom();
+    const stateZ = z >= STATE_Z;
+    for (const l of this.data.labels) {
+      const m = this.labelMarkers[l.name]; if (!m) continue;
+      this.setLbl(m, this.labelHtml(l.name, s.names && stateZ ? (l.short || l.name) : '', l.tornadoes));
+    }
+    /* greedy collision pass: state names first, then countries by importance; drop names that would overlap */
+    const placed = [];
+    const fs = s.hollow ? 15 : 12.5, cw = fs * 0.6 + (s.hollow ? 0.6 : 0.3);
+    const box = (pt, text, key) => {
+      const w = Math.max(text.length * cw, this.words[key] && s.mine ? this.words[key].length * 7.5 + 16 : 0), h = fs + 3 + (this.words[key] && s.mine ? 20 : 0);
+      return { x1: pt.x - w / 2, x2: pt.x + w / 2, y1: pt.y - h / 2, y2: pt.y + h / 2 };
+    };
+    const hit = (b) => placed.some((p) => b.x1 < p.x2 && b.x2 > p.x1 && b.y1 < p.y2 && b.y2 > p.y1);
+    if (s.names && stateZ) for (const l of this.data.labels) placed.push(box(map.latLngToContainerPoint([l.lat, l.lng]), l.short || l.name, l.name));
+    for (const c of this.places) c._w = this.words[c.key] && s.mine;
+    for (const c of this.places.filter((c) => c._w)) placed.push(box(map.latLngToContainerPoint([c.lat, c.lng]), '', c.key));
+    const order = [...this.places].sort((a, b) => (a.rank - b.rank) || (a.minLabel - b.minLabel));
+    for (const c of order) {
+      let t = '';
+      if (s.names && !(c.a3 === 'USA' && stateZ)) {
+        const pt = map.latLngToContainerPoint([c.lat, c.lng]);
+        const opts = [];
+        if (z >= c.minLabel) opts.push(c.display);
+        if (c.short && z >= c.minLabel - 0.8) opts.push(c.short);
+        for (const o of opts) { const b = box(pt, o, c.key); if (!hit(b)) { t = o; if (!c._w) placed.push(b); break; } }
+      }
+      this.setLbl(c.marker, this.labelHtml(c.key, t, null));
+    }
+    for (const c of this.capMarkers) {
+      if (s.capitals && z >= c.minZoom) c.m.addTo(map); else c.m.remove();
+    }
+  },
+  setWords(key, v) { this.words[key] = v; this.renderLabels(); },
+
+  /* ---------- state popover ---------- */
+  selectPlace(key, name, pt) {
+    this.clearSel();
+    const lyr = this.placeLayers[key];
+    if (lyr) { lyr.setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 }); this.selected = key; }
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const x = Math.min(Math.max(8, pt.x + 56), stage.width - 262);
+    const y = Math.min(Math.max(8, pt.y - 60), stage.height - 170);
+    patch({ popOpen: true, popName: name, popKey: key, popWords: this.words[key] || '', popX: x, popY: y });
+    setTimeout(() => document.getElementById('popWords').focus({ preventScroll: true }), 0);
+  },
+  clearSel() {
+    if (this.selected && this.placeLayers[this.selected]) this.placeLayers[this.selected].setStyle({ fillOpacity: 0 });
+    this.selected = null;
+  },
+  closePop() { this.clearSel(); patch({ popOpen: false }); },
+
+  /* ---------- free text ---------- */
+  addTag(latlng, text = 'My words') {
+    const wrap = document.createElement('div');
+    wrap.className = 'ft';
+    wrap.innerHTML = '<span class="ft-grip" role="button" tabindex="0" aria-label="Move text"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></span><span class="ft-t" contenteditable="true" role="textbox" aria-label="Text"></span><button class="ft-x" aria-label="Delete text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    const t = wrap.querySelector('.ft-t'); t.textContent = text;
+    const icon = L.divIcon({ className: 'ft-wrap', html: wrap, iconSize: [0, 0] });
+    const mk = L.marker(latlng, { icon, interactive: true, keyboard: false, bubblingMouseEvents: false }).addTo(map);
+    this.freeTags.push(mk);
+    L.DomEvent.disableClickPropagation(wrap);
+    L.DomEvent.on(wrap, 'pointerdown touchstart wheel', L.DomEvent.stopPropagation);
+    wrap.querySelector('.ft-x').addEventListener('click', () => { mk.remove(); this.freeTags = this.freeTags.filter((x) => x !== mk); });
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } });
+    const grip = wrap.querySelector('.ft-grip');
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); grip.setPointerCapture(e.pointerId);
+      const move = (ev) => mk.setLatLng(map.mouseEventToLatLng(ev));
+      const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); };
+      grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+    });
+    return { mk, t };
+  },
+
+  /* ---------- search ---------- */
+  boundsOf(geom, o = {}) {
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    const info = [];
+    for (const p of polys) {
+      const b = L.latLngBounds([]);
+      for (const [x, y] of p[0]) {
+        if ((o.minLng != null && x < o.minLng) || (o.maxLng != null && x > o.maxLng)) continue;
+        b.extend([y, x]);
+      }
+      if (!b.isValid()) continue;
+      info.push({ b, a: (b.getEast() - b.getWest()) * (b.getNorth() - b.getSouth()) });
+    }
+    const max = Math.max(...info.map((i) => i.a));
+    const out = L.latLngBounds([]);
+    info.forEach((i) => { if (i.a >= max * 0.03) out.extend(i.b); });
+    return out;
+  },
+  candidates() {
+    if (this._cands) return this._cands;
+    const c = [{ name: 'World', b: WORLD_BOUNDS }, { name: 'United States', b: US_BOUNDS }];
+    const cs = [...this.places].filter((p) => p.a3 !== 'USA').sort((a, b) => (a.rank - b.rank) || a.display.localeCompare(b.display));
+    for (const p of cs) {
+      if (!p.feature) continue;
+      const fo = FIT[p.fname];
+      c.push({ name: p.display, alt: p.fname, b: fo ? L.latLngBounds(fo) : this.boundsOf(p.feature.geometry, FIT_OPTS[p.fname]) });
+    }
+    for (const f of this.data.features || []) c.push({ name: f.properties.name, b: this.boundsOf(f.geometry, f.properties.name === 'Alaska' ? { maxLng: 0 } : {}) });
+    return (this._cands = c);
+  },
+  search(q) {
+    q = (q || '').trim().toLowerCase(); if (!q) return;
+    if (q === 'usa' || q === 'us') q = 'united states';
+    const c = this.candidates();
+    const nm = (x) => [x.name.toLowerCase(), (x.alt || '').toLowerCase()];
+    const hit = c.find((x) => nm(x).includes(q)) || c.find((x) => nm(x).some((n) => n.startsWith(q))) || c.find((x) => nm(x).some((n) => n.includes(q)));
+    if (hit && hit.b.isValid()) { this.userMoved = true; this.fitTo(hit.b); }
+  },
+
+  /* ---------- print ---------- */
+  preparePrint() {
+    if (this.printing) return;
+    this.printing = true;
+    const eff = this.effOrient();
+    this.saved = { center: map.getCenter(), zoom: map.getZoom(), sel: this.selected, minZoom: map.getMinZoom() };
+    map.setMaxBounds(null); map.setMinZoom(0);
+    const bounds = this.frameBounds();
+    this.clearSel();
+    document.activeElement && document.activeElement.blur && document.activeElement.blur();
+    let st = document.getElementById('pagecss');
+    if (!st) { st = document.createElement('style'); st.id = 'pagecss'; document.head.appendChild(st); }
+    st.textContent = `@page { size: letter ${eff}; margin: 0.4in }`;
+    const [pw, ph] = eff === 'landscape' ? [10.2, 7.7] : [7.7, 10.2];
+    document.body.style.setProperty('--pw', pw + 'in');
+    document.body.style.setProperty('--ph', ph + 'in');
+    document.body.classList.add('printing');
+    map.invalidateSize({ animate: false });
+    map.fitBounds(bounds, { animate: false, padding: [0, 0] });
+  },
+  endPrint() {
+    if (!this.printing) return;
+    this.printing = false;
+    document.body.classList.remove('printing');
+    map.setMaxBounds([[-80, -200], [85, 200]]); map.setMinZoom(this.saved.minZoom);
+    map.invalidateSize({ animate: false });
+    map.setView(this.saved.center, this.saved.zoom, { animate: false });
+    if (this.saved.sel && this.placeLayers[this.saved.sel]) this.placeLayers[this.saved.sel].setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 }), this.selected = this.saved.sel;
+    this.layoutFrame(false);
+  },
+  /* Render the map to a canvas (scale ~3) and wrap it in a Letter PDF. Returns { pdf, canvas }. */
+  async buildPdf() {
+    this.preparePrint();
+    const eff = this.effOrient();
+    try {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 350));
+      const el = document.getElementById('map');
+      const mr = el.getBoundingClientRect();
+      const rects = [...el.querySelectorAll('svg')].map((sv) => { const b = sv.getBoundingClientRect(); return { sv, r: { left: b.left - mr.left, top: b.top - mr.top, width: b.width, height: b.height } }; });
+      let svgs = null;
+      const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        /* html2canvas mangles inline SVG inside transformed Leaflet panes: swap each SVG for an <img>
+           of the same SVG, placed directly in #map at its on-screen position (no transformed ancestors) */
+        onclone: (doc) => {
+          svgs = [...doc.querySelectorAll('#map svg')];
+          const cm = doc.getElementById('map');
+          rects.forEach(({ sv, r }, i) => {
+            const csv = svgs[i]; if (!csv || r.width < 1) return;
+            if (!csv.getAttribute('xmlns')) csv.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            csv.removeAttribute('style'); csv.setAttribute('width', r.width); csv.setAttribute('height', r.height);
+            const img = doc.createElement('img');
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(csv));
+            Object.assign(img.style, { position: 'absolute', margin: '0', transform: 'none', maxWidth: 'none', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', pointerEvents: 'none' });
+            csv.remove();
+            if (sv.classList.contains('cap')) cm.appendChild(img); else cm.insertBefore(img, cm.firstChild);
+          });
+        } });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: eff, unit: 'in', format: 'letter' });
+      const PW = eff === 'landscape' ? 11 : 8.5, PH = eff === 'landscape' ? 8.5 : 11, M = 0.4;
+      const aw = PW - 2 * M, ah = PH - 2 * M, ar = canvas.width / canvas.height;
+      let w = aw, h = w / ar;
+      if (h > ah) { h = ah; w = h * ar; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h);
+      return { pdf, canvas };
+    } finally { this.endPrint(); }
+  },
+  setBusy(b) {
+    const btn = document.getElementById('printBtn'), lbl = document.getElementById('printLbl');
+    if (!btn) return;
+    btn.disabled = b; btn.setAttribute('aria-busy', b ? 'true' : 'false');
+    if (lbl) lbl.textContent = b ? 'Making page\u2026' : 'Print';
+  },
+  async print() {
+    if (this.busy || this.printing) return;
+    this.busy = true; this.setBusy(true);
+    try {
+      const dl = await this.dlReady;
+      const inFrame = window.self !== window.top;
+      if (!dl && !inFrame) { await this.nativePrint(); return; }
+      const { pdf } = await this.buildPdf();
+      const blob = pdf.output('blob');
+      if (dl) {
+        try { await dl.save({ filename: 'coloring-page.pdf', data: blob }); return; }
+        catch (e) { if (e && e.code === 'declined') return; /* otherwise fall back */ }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'coloring-page.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch (e) { console.error('print failed', e); }
+    finally { this.busy = false; this.setBusy(false); }
+  },
+  nativePrint() {
+    return new Promise((resolve) => {
+      this.preparePrint();
+      let done = false;
+      const fin = () => { if (done) return; done = true; window.removeEventListener('afterprint', fin); this.endPrint(); resolve(); };
+      window.addEventListener('afterprint', fin);
+      setTimeout(() => {
+        try { window.print(); } catch (e) { fin(); return; }
+        setTimeout(fin, 120000); /* safety net if afterprint never fires */
+      }, 150);
+    });
+  }
+};
+
+/* native-print case only (e.g. browser menu print); our own flows manage printing themselves */
+window.addEventListener('beforeprint', () => { if (!app.busy) app.preparePrint(); });
+window.addEventListener('afterprint', () => { if (!app.busy) app.endPrint(); });
+/* resolve the downloads capability once, without blocking first paint (may resolve null after ~10s) */
+app.dlReady = (async () => {
+  try { return window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { return null; }
+})();
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); app.print(); }
+  if (e.key === 'Escape') app.closePop();
+});
+new ResizeObserver(() => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); }).observe(document.getElementById('map'));
+
+for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });
+map.on('zoomend', () => app.renderLabels());
+map.on('click', (e) => {
+  if (!app.s) return;
+  if (app.s.tool === 'text') {
+    const { t } = app.addTag(e.latlng, '');
+    t.focus();
+  }
+});
+
+/* ---------- load data ---------- */
+(async () => {
+  try {
+    const [states, labels, caps, torn, world, wlabels, wcaps, prov] = await Promise.all(
+      ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-50m', 'world-labels', 'world-capitals', 'world-provinces-50m'].map((n) => fetch(`data/${n}.json`).then((r) => r.json())));
+    // Keep the 50 states + DC; drop territories (PR, GU, VI, AS, MP: FIPS >= 60).
+    states.objects.states.geometries = states.objects.states.geometries.filter((g) => +g.id < 60);
+    states.objects.nation = states.objects.states;
+    const feats = topojson.feature(states, states.objects.states);
+    app.data.features = feats.features;
+    app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
+
+    // world: drop Antarctica
+    const wc = world.objects.countries;
+    wc.geometries = wc.geometries.filter((g) => g.id !== '010');
+    const wfeats = topojson.feature(world, wc);
+    const NAME_FIX = { 'N. Cyprus': 'Turkish Republic of Northern Cyprus' };
+    const byIso = {}, byName = {};
+    wfeats.features.forEach((f) => { if (f.id) byIso[f.id] = f; else byName[NAME_FIX[f.properties.name] || f.properties.name] = f; });
+    for (const l of wlabels.labels) {
+      if (l.iso === '010' || l.a3 === 'ATA') continue;
+      const f = (l.iso && byIso[l.iso]) || byName[l.name] || null;
+      let display = l.name;
+      if (/^People's Republic of China/.test(display)) display = 'China';
+      if (display === 'United States of America') display = 'United States';
+      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, feature: f, fname: f ? f.properties.name : null });
+    }
+    const list = document.getElementById('places');
+    const seen = new Set();
+    ['World', 'United States', ...app.places.filter((p) => p.a3 !== 'USA').map((p) => p.display).sort(), ...feats.features.map((f) => f.properties.name)]
+      .forEach((n) => { if (seen.has(n)) return; seen.add(n); const o = document.createElement('option'); o.value = n; list.appendChild(o); });
+
+    const base = { color: INK, lineJoin: 'round', lineCap: 'round', fill: false, interactive: false };
+    const fillStyle = { stroke: false, fill: true, fillColor: '#FFC93C', fillOpacity: 0 };
+    const placeOf = new Map(app.places.filter((p) => p.feature).map((p) => [p.feature, p]));
+    app.layers.countries = L.geoJSON({ type: 'FeatureCollection', features: wfeats.features.filter((f) => f.id !== '840') }, {
+      style: fillStyle,
+      onEachFeature: (f, lyr) => {
+        const p = placeOf.get(f); if (!p) return;
+        app.placeLayers[p.key] = lyr;
+        lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(p.key, p.display, e.containerPoint); });
+      }
+    }).addTo(map);
+    app.layers.states = L.geoJSON(feats, {
+      style: fillStyle,
+      onEachFeature: (f, lyr) => {
+        app.placeLayers[f.properties.name] = lyr;
+        lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(f.properties.name, f.properties.name, e.containerPoint); });
+      }
+    }).addTo(map);
+    const notUS = (g) => g.id !== '840';
+    /* split lines where a ring jumps across the antimeridian (would draw a horizontal streak) */
+    const clean = (g) => {
+      const out = [];
+      for (const ln of g.coordinates) {
+        let cur = [];
+        for (const pt of ln) {
+          if (cur.length && Math.abs(pt[0] - cur[cur.length - 1][0]) > 180) { if (cur.length > 1) out.push(cur); cur = []; }
+          cur.push(pt);
+        }
+        if (cur.length > 1) out.push(cur);
+      }
+      return { type: 'MultiLineString', coordinates: out };
+    };
+    const mk = (mesh, w) => L.geoJSON(clean(mesh), { style: { ...base, weight: w }, interactive: false }).addTo(map);
+    app.layers.borders = mk(topojson.mesh(world, wc, (a, b) => a !== b && notUS(a) && notUS(b)), 1.25);
+    app.layers.coast = mk(topojson.mesh(world, wc, (a, b) => a === b && notUS(a)), 2);
+    app.layers.provinces = mk(topojson.mesh(prov, prov.objects.provinces), 1.25);
+    app.layers.stateMesh = mk(topojson.mesh(states, states.objects.states, (a, b) => a !== b), 1.25);
+    app.layers.nation = mk(topojson.mesh(states, states.objects.nation, (a, b) => a === b), 2);
+
+    const mkLbl = (lat, lng) => L.marker([lat, lng], { icon: L.divIcon({ className: 'lbl-wrap', html: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    for (const l of app.data.labels) app.labelMarkers[l.name] = mkLbl(l.lat, l.lng);
+    for (const p of app.places) p.marker = mkLbl(p.lat, p.lng);
+    const star = (c, minZoom) => app.capMarkers.push({ minZoom, m: L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'lbl-wrap', html: STAR, iconSize: [0, 0] }), interactive: false, keyboard: false, zIndexOffset: -100 }) });
+    for (const c of caps) star(c, STATE_Z);
+    for (const c of wcaps) star(c, c.minZoom);
+    if (app.s) app.sync(app.s);
+  } catch (e) { console.error('data load failed', e); }
+})();
+
+/* initial frame + fit */
+app.layoutFrame(true);
+requestAnimationFrame(() => { map.invalidateSize({ animate: false }); app.layoutFrame(true); });
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+ "title": "Tornadoes a year (average)",
+ "source": "PLACEHOLDER: approx. NOAA 1991-2010 annual averages, from memory; verify before release",
+ "values": {
+  "Louisiana": 37,
+  "Minnesota": 45,
+  "North Dakota": 32,
+  "South Dakota": 36,
+  "Mississippi": 45,
+  "Texas": 155,
+  "Nebraska": 57,
+  "Colorado": 53,
+  "Kansas": 96,
+  "Illinois": 54,
+  "Wisconsin": 23,
+  "Iowa": 51,
+  "Montana": 10,
+  "Missouri": 45,
+  "Oklahoma": 62,
+  "Arkansas": 39,
+  "Wyoming": 12,
+  "New Mexico": 10
+ }
+}
