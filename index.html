@@ -237,7 +237,26 @@ import { mergePatch, root } from './vendor/datastar.js';
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
-const WORLD_BOUNDS = L.latLngBounds([-56, -180], [78, 180]);
+const WORLD_BOUNDS = L.latLngBounds([-56, -190], [78, 192]);
+/* Keep Russia and Alaska whole across the 180° line: Chukotka moves east of 180, the western Aleutians west of -180. */
+const fixPt = (p) => (p[0] < -169 && p[1] > 64.5) ? [p[0] + 360, p[1]] : (p[0] > 170 && p[1] > 50 && p[1] < 56) ? [p[0] - 360, p[1]] : p;
+const fixCoords = (c) => typeof c[0] === 'number' ? fixPt(c) : c.map(fixCoords);
+const fixFeatures = (fc) => { for (const f of fc.features) if (f.geometry) f.geometry.coordinates = fixCoords(f.geometry.coordinates); return fc; };
+/* split lines where they jump across the antimeridian, and drop edges that run along it */
+const clean = (g) => {
+  const out = [];
+  const lines = g.type === 'LineString' ? [g.coordinates] : g.coordinates;
+  for (const ln of lines) {
+    let cur = [];
+    for (const raw of ln) {
+      const pt = fixPt(raw), last = cur[cur.length - 1];
+      if (last && (Math.abs(pt[0] - last[0]) > 180 || (Math.abs(Math.abs(pt[0]) - 180) < 0.01 && Math.abs(Math.abs(last[0]) - 180) < 0.01))) { if (cur.length > 1) out.push(cur); cur = []; }
+      cur.push(pt);
+    }
+    if (cur.length > 1) out.push(cur);
+  }
+  return { type: 'MultiLineString', coordinates: out };
+};
 const STATE_Z = 4;
 const FIT = {
   'France': [[41.2, -5.5], [51.2, 9.8]], 'Spain': [[35.9, -9.5], [43.9, 4.5]], 'Portugal': [[36.8, -9.6], [42.2, -6.1]],
@@ -339,7 +358,7 @@ const app = window.app = {
       const topo = await (await fetch('data/counties-10m.json')).json();
       topo.objects.counties.geometries = topo.objects.counties.geometries.filter((g) => +String(g.id).padStart(5, '0').slice(0, 2) < 60);
       const mesh = topojson.mesh(topo, topo.objects.counties, (a, b) => a !== b && String(a.id).slice(0, 2) === String(b.id).slice(0, 2));
-      this.countyLayer = L.geoJSON(mesh, { style: { color: INK, weight: this.s.wCounty, fill: false, lineJoin: 'round', lineCap: 'round' }, interactive: false, smoothFactor: 1 });
+      this.countyLayer = L.geoJSON(clean(mesh), { style: { color: INK, weight: this.s.wCounty, fill: false, lineJoin: 'round', lineCap: 'round' }, interactive: false, smoothFactor: 1 });
       this.sync(this.s);
     } catch (e) { console.error('counties failed', e); }
     this.countiesLoading = false;
@@ -615,14 +634,14 @@ map.on('click', (e) => {
     // Keep the 50 states + DC; drop territories (PR, GU, VI, AS, MP: FIPS >= 60).
     states.objects.states.geometries = states.objects.states.geometries.filter((g) => +g.id < 60);
     states.objects.nation = states.objects.states;
-    const feats = topojson.feature(states, states.objects.states);
+    const feats = fixFeatures(topojson.feature(states, states.objects.states));
     app.data.features = feats.features;
     app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
 
     // world: drop Antarctica
     const wc = world.objects.countries;
     wc.geometries = wc.geometries.filter((g) => g.id !== '010');
-    const wfeats = topojson.feature(world, wc);
+    const wfeats = fixFeatures(topojson.feature(world, wc));
     const NAME_FIX = { 'N. Cyprus': 'Turkish Republic of Northern Cyprus' };
     const byIso = {}, byName = {};
     wfeats.features.forEach((f) => { if (f.id) byIso[f.id] = f; else byName[NAME_FIX[f.properties.name] || f.properties.name] = f; });
@@ -658,19 +677,6 @@ map.on('click', (e) => {
       }
     }).addTo(map);
     const notUS = (g) => g.id !== '840';
-    /* split lines where a ring jumps across the antimeridian (would draw a horizontal streak) */
-    const clean = (g) => {
-      const out = [];
-      for (const ln of g.coordinates) {
-        let cur = [];
-        for (const pt of ln) {
-          if (cur.length && Math.abs(pt[0] - cur[cur.length - 1][0]) > 180) { if (cur.length > 1) out.push(cur); cur = []; }
-          cur.push(pt);
-        }
-        if (cur.length > 1) out.push(cur);
-      }
-      return { type: 'MultiLineString', coordinates: out };
-    };
     const mk = (mesh, w) => L.geoJSON(clean(mesh), { style: { ...base, weight: w }, interactive: false }).addTo(map);
     app.layers.borders = mk(topojson.mesh(world, wc, (a, b) => a !== b && notUS(a) && notUS(b)), 1.25);
     app.layers.coast = mk(topojson.mesh(world, wc, (a, b) => a === b && notUS(a)), 2);
