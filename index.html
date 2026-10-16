@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Coloring Map</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Crect width=%2740%27 height=%2740%27 rx=%2711%27 fill=%27%23FFC93C%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,11 +28,6 @@ main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(
 #map .leaflet-interactive{cursor:inherit}
 #map.tool-move .leaflet-interactive{cursor:pointer}
 #map.leaflet-drag-target,#map.leaflet-grab{cursor:grab}
-@media (max-width:860px){
-  aside{max-width:none;flex-basis:100%;border-right:0;border-bottom:2px solid var(--ink);padding:14px 16px}
-  main{flex-basis:100%;height:max(480px,70vh)}
-  .cards{display:grid;grid-template-columns:1fr;gap:14px}
-}
 .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:4px 4px 4px 2px;background:none;border:0;cursor:pointer;font-size:18px;font-weight:700;text-align:left}
 .sw{position:relative;flex:none;width:54px;height:32px;border-radius:999px;border:2px solid var(--ink);background:var(--track);transition:background .15s}
 .sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--ink);transition:left .15s}
@@ -72,6 +67,91 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .pop-head span{font-size:24px;font-weight:800}
 .pop label{font-size:15px;font-weight:700;color:var(--muted)}
 
+
+/* ---------- responsive: shared bits (hidden on desktop) ---------- */
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.grab,.close-x,.pop .done,#dock{display:none}
+.rb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;border:2px solid var(--ink);border-radius:18px;background:#fff;box-shadow:0 3px 0 var(--ink);font-size:15px;font-weight:800;line-height:1.1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rb[aria-pressed="true"]{background:var(--accent)}
+.rb:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.rb-print{background:var(--coral)}
+.rb:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.grab{width:44px;height:5px;border-radius:99px;background:#CFC6B8;margin:0 auto 6px}
+.close-x{height:40px;width:40px;border-radius:12px;box-shadow:none}
+
+@media (max-width:1099px){
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{position:fixed;inset:0;width:100%;-webkit-text-size-adjust:100%}
+  .app{position:relative;height:100vh;height:100dvh;min-height:0;overflow:hidden}
+  header{flex-wrap:nowrap}
+  .work{position:relative;display:block;flex:1;min-height:0}
+  main{position:absolute;inset:0;height:auto;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .ft-t{-webkit-user-select:text;user-select:text}
+  #map{-webkit-tap-highlight-color:transparent}
+  .tools{display:none}
+  #dock{display:flex}
+  .close-x{display:flex}
+  .card:not(.open){display:none}
+  aside{position:absolute;z-index:1250;padding:0;border:0;background:none;max-width:none;pointer-events:none}
+  .cards{display:block}
+  .card.open{pointer-events:auto;overflow:auto;-webkit-overflow-scrolling:touch}
+  .ft .ft-grip,.ft .ft-x{width:34px;height:36px}
+}
+/* tablet */
+@media (min-width:700px) and (max-width:1099px) and (min-height:500px){
+  #dock{position:absolute;left:16px;top:16px;z-index:1000;flex-direction:column;gap:8px;padding:8px;border:2px solid var(--ink);border-radius:24px;background:#fff;box-shadow:0 3px 0 var(--ink);max-height:calc(100% - 32px);overflow:auto}
+  .rb{width:68px;min-height:68px;border:0;border-radius:16px;background:none;box-shadow:none;font-size:14px}
+  .rb:active{transform:none}
+  .rb[aria-pressed="true"]{background:var(--accent);box-shadow:inset 0 0 0 2px var(--ink)}
+  .rb-print{display:none}
+  .rb-move{order:1}.rb-words{order:2}.rb-lines{order:3}.rb-labels{order:4}
+  aside{left:116px;top:16px;width:340px;max-width:calc(100% - 132px);max-height:calc(100% - 32px)}
+  .card.open{max-height:calc(100dvh - 68px - 32px);box-shadow:0 5px 0 var(--ink)}
+}
+/* phone (also short landscape screens: phone held sideways) */
+@media (max-width:699px), (max-width:1099px) and (max-height:499px){
+  header{position:absolute;z-index:1300;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));padding:0;min-height:0;gap:8px;background:none;border:0;pointer-events:none}
+  header>*{pointer-events:auto}
+  .grow,#printBtn,.brand span,.zoom{display:none}
+  .brand{flex:none}
+  .brand svg{display:block;width:48px;height:48px;filter:drop-shadow(0 3px 0 var(--ink))}
+  .search{flex:1 1 auto;min-width:0}
+  .search svg{left:15px;top:14px}
+  .search .field{box-shadow:0 3px 0 var(--ink);font-size:17px}
+  .work{position:absolute;inset:0}
+  #dock{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 12px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:2px solid var(--ink);border-radius:24px 24px 0 0}
+  .rb{min-height:64px}
+  .rb-move{display:none}
+  .rb-lines{order:1}.rb-labels{order:2}.rb-words{order:3}.rb-print{order:4}
+  .pageseg{bottom:calc(106px + env(safe-area-inset-bottom));padding:4px;gap:4px;border-radius:16px}
+  .pageseg button{min-width:48px;padding:0 10px;font-size:15px}
+  .has-sheet #dock,.has-sheet .pageseg{display:none}
+  aside{left:0;right:0;bottom:0}
+  .card.open,.pop{border:0;border-top:2px solid var(--ink);border-radius:28px 28px 0 0;box-shadow:none;padding:10px 20px calc(24px + env(safe-area-inset-bottom))}
+  .card.open{max-height:75vh;max-height:75dvh;gap:4px}
+  .grab{display:block}
+  .card h2,.pop-head span{font-size:26px;font-weight:800;letter-spacing:0;text-transform:none;color:var(--ink);margin:0}
+  .pop{left:0!important;right:0;top:auto!important;bottom:0;width:auto;z-index:1250}
+  .pop .done{display:flex;background:var(--accent);width:100%}
+  .frame .tag{font-size:13px;top:-32px}
+}
+
+/* phone held sideways: compact bar/dock, page segment moves up beside the search */
+@media (max-width:1099px) and (max-height:499px){
+  header{left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top))}
+  .brand svg{width:44px;height:44px}
+  .search{flex:0 1 380px}
+  .search .field{height:44px}
+  .search svg{top:12px}
+  .pageseg{bottom:auto;left:auto;transform:none;top:calc(8px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));z-index:1300;padding:3px;gap:3px;border-radius:14px}
+  .pageseg button{min-height:38px;min-width:44px;padding:0 8px;font-size:14px}
+  #dock{gap:8px;padding:6px calc(12px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));border-radius:18px 18px 0 0}
+  .frame .tag{top:6px;right:6px;font-size:12px;padding:3px 9px 2px}
+  .rb{min-height:46px;flex-direction:row;gap:8px}
+  .card.open{max-height:min(85vh,calc(100vh - 64px));max-height:min(85dvh,calc(100dvh - 64px));padding:8px 20px calc(14px + env(safe-area-inset-bottom))}
+  .pop{max-height:min(85dvh,calc(100dvh - 64px));overflow:auto}
+}
+
 /* labels (Leaflet divIcons) */
 .lbl-wrap{width:0!important;height:0!important;margin:0!important;background:none;border:0;pointer-events:none}
 .lbl{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;line-height:1;pointer-events:none}
@@ -91,10 +171,11 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 
 /* print (mirrored by body.printing so it can be previewed) */
 html:has(body.printing),body.printing{background:#fff}
-body.printing header,body.printing aside,body.printing .tools,body.printing .pageseg,body.printing .zoom,body.printing .frame,body.printing .pop,body.printing .ft-grip,body.printing .ft-x{display:none!important}
-body.printing .app{display:block;min-height:0}
-body.printing .work{display:block}
-body.printing main{position:absolute;left:0;top:0;width:auto;height:auto;overflow:visible;background:#fff;border:0}
+body.printing header,body.printing aside,body.printing #dock,body.printing .tools,body.printing .pageseg,body.printing .zoom,body.printing .frame,body.printing .pop,body.printing .ft-grip,body.printing .ft-x{display:none!important}
+html:has(body.printing),body.printing{position:static;height:auto;overflow:visible;width:auto}
+body.printing .app{display:block;min-height:0;height:auto;overflow:visible;position:static}
+body.printing .work{display:block;position:static}
+body.printing main{position:absolute;left:0;top:0;right:auto;bottom:auto;width:auto;height:auto;overflow:visible;background:#fff;border:0}
 body.printing #map{position:relative;inset:auto;width:var(--pw);height:var(--ph);cursor:default}
 body.printing .ft{box-shadow:none!important;border:0!important;background:transparent!important;padding:0}
 body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -104,7 +185,7 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 </style>
 </head>
 <body>
-<div class="app" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="window.app && window.app.sync({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
+<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="window.app && window.app.sync({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
 
 <header>
   <div class="brand">
@@ -118,17 +199,18 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     <datalist id="places"></datalist>
   </form>
   <div class="grow"></div>
-  <button class="btn" id="printBtn" style="background:#FF8A65;font-size:20px;padding:0 22px" data-on:click="window.app.print()">
+  <button class="btn js-print" id="printBtn" style="background:#FF8A65;font-size:20px;padding:0 22px" data-on:click="window.app.print()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z" fill="#fff"/></svg>
-    <span id="printLbl">Print</span>
+    <span id="printLbl" class="js-printlbl">Print</span>
   </button>
 </header>
 
 <div class="work">
 <aside>
  <div class="cards">
-  <section class="card" aria-labelledby="h-lines">
-    <h2 id="h-lines">Lines</h2>
+  <section class="card" aria-labelledby="h-lines" data-class:open="$panel == 'lines'">
+    <span class="grab"></span>
+    <div class="card-head"><h2 id="h-lines">Lines</h2><button class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="toggle" data-attr:aria-pressed="($showCountries) ? 'true' : 'false'" data-on:click="$showCountries = !$showCountries">Country lines <span class="sw"><i></i></span></button>
     <label class="slide" data-show="$showCountries"><span class="sr">Country line thickness</span>
       <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
@@ -155,8 +237,9 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     </label>
   </section>
 
-  <section class="card" aria-labelledby="h-labels">
-    <h2 id="h-labels">Labels</h2>
+  <section class="card" aria-labelledby="h-labels" data-class:open="$panel == 'labels'">
+    <span class="grab"></span>
+    <div class="card-head"><h2 id="h-labels">Labels</h2><button class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
       <button class="chip" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>
@@ -184,7 +267,8 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   <div id="map" role="application" aria-label="World map"></div>
   <div class="frame" id="frame"><span class="tag" data-text="$frameTag"></span></div>
 
-  <div class="pop" data-show="$popOpen" style="display:none" data-style:left="$popX + 'px'" data-style:top="$popY + 'px'" role="dialog" aria-label="Place words">
+  <div class="pop" id="placeSheet" data-show="$popOpen" style="display:none" data-style:left="$popX + 'px'" data-style:top="$popY + 'px'" role="dialog" aria-label="Place words">
+    <span class="grab"></span>
     <div class="pop-head">
       <span data-text="$popName"></span>
       <button class="btn icon-btn" aria-label="Close" style="height:40px;width:40px;border-radius:12px;box-shadow:none" data-on:click="window.app.closePop()">
@@ -193,6 +277,7 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     </div>
     <label for="popWords">My words</label>
     <input id="popWords" class="field" type="text" autocomplete="off" data-bind="popWords" data-on:input="window.app.setWords($popKey, evt.target.value)">
+    <button class="btn done" data-on:click="window.app.closePop()">Done</button>
   </div>
 
   <div class="tools" role="group" aria-label="Tools">
@@ -205,7 +290,15 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     </button>
   </div>
 
-  <div class="seg pageseg" role="group" aria-label="Page">
+  <nav id="dock" aria-label="Tools">
+    <button class="rb rb-move" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>Move</button>
+    <button class="rb rb-words" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = ($tool == 'text') ? 'move' : 'text'; $panel = ''; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Words</button>
+    <button class="rb rb-lines" data-attr:aria-pressed="($panel == 'lines') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'lines') ? '' : 'lines'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6c3-2 6 2 9 0s6-2 9 0M3 12c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/></svg>Lines</button>
+    <button class="rb rb-labels" data-attr:aria-pressed="($panel == 'labels') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'labels') ? '' : 'labels'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>Labels</button>
+    <button class="rb rb-print js-print" data-on:click="window.app.print()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z" fill="#fff"/></svg><span class="js-printlbl" data-busy="Making…">Print</span></button>
+  </nav>
+
+  <div class="seg pageseg" id="orientSeg" role="group" aria-label="Page">
     <button data-attr:aria-pressed="($orient == 'auto') ? 'true' : 'false'" data-on:click="$orient = 'auto'">Auto</button>
     <button aria-label="Landscape" data-attr:aria-pressed="($orient == 'landscape') ? 'true' : 'false'" data-on:click="$orient = 'landscape'">
       <svg width="30" height="24" viewBox="0 0 30 24" aria-hidden="true"><rect x="2" y="3" width="26" height="18" rx="3" fill="#fff" stroke="#1E1B18" stroke-width="2.4"/></svg>
@@ -237,6 +330,7 @@ import { mergePatch, root } from './vendor/datastar.js';
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
+const MAX_BOUNDS = [[-80, -200], [85, 200]];
 const WORLD_BOUNDS = L.latLngBounds([-56, -190], [78, 192]);
 /* Keep Russia and Alaska whole across the 180° line: Chukotka moves east of 180, the western Aleutians west of -180. */
 const fixPt = (p) => (p[0] < -169 && p[1] > 64.5) ? [p[0] + 360, p[1]] : (p[0] > 170 && p[1] > 50 && p[1] < 56) ? [p[0] - 360, p[1]] : p;
@@ -267,10 +361,12 @@ const FIT_OPTS = { 'Russia': { minLng: 0 }, 'Fiji': { minLng: 0 } };
 const STAR = '<svg class="cap" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.8 5.8 6.4.9-4.6 4.4 1.1 6.3L12 16.9l-5.7 3 1.1-6.3-4.6-4.4 6.4-.9z" fill="#ffffff" stroke="#1E1B18" stroke-width="2.2" stroke-linejoin="round"/></svg>';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const patch = (o) => mergePatch(o);
+/* keep in sync with the CSS: phone = narrow OR short landscape (<500px tall, <1100 wide) */
+const mq = { phone: matchMedia('(max-width:699px), (max-width:1099px) and (max-height:499px)'), tablet: matchMedia('(min-width:700px) and (max-width:1099px) and (min-height:500px)') };
 
 const map = L.map('map', {
   zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
-  wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: [[-80, -200], [85, 200]], maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
+  wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: MAX_BOUNDS, maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
   worldCopyJump: false, doubleClickZoom: false
 });
 map.setView([20, 0], 2);
@@ -287,29 +383,59 @@ const app = window.app = {
     const sz = map.getSize();
     return sz.x > sz.y ? 'landscape' : 'portrait';
   },
+  /* room kept clear around the print frame: depends on the layout (phone bar/dock/sheets, tablet rail, desktop) */
+  insets(sz) {
+    const d = { top: 56, bottom: 84, left: 24, right: 24 };
+    const mr = document.getElementById('map').getBoundingClientRect();
+    if (mq.phone.matches) {
+      const h = document.querySelector('header').getBoundingClientRect();
+      d.top = Math.max(0, h.bottom - mr.top) + (matchMedia('(max-height:499px)').matches ? 12 : 46); d.left = d.right = 16;
+      let bt = sz.y;
+      for (const el of document.querySelectorAll('#dock,#orientSeg,.card.open,#placeSheet')) {
+        if (el.id === 'orientSeg' && matchMedia('(max-height:499px)').matches) continue; // sits in the top bar when sideways
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) bt = Math.min(bt, r.top - mr.top);
+      }
+      d.bottom = Math.max(0, sz.y - bt) + 14;
+    } else if (mq.tablet.matches) d.left = 116;
+    return d;
+  },
   layoutFrame(refit) {
     const sz = map.getSize();
     const eff = this.effOrient();
     const r = eff === 'landscape' ? 11 / 8.5 : 8.5 / 11;
-    const top = 56, bottom = 84, side = 24;
-    const maxW = Math.max(120, sz.x - side * 2), maxH = Math.max(120, sz.y - top - bottom);
+    const ins = this.insets(sz), top = ins.top;
+    const maxW = Math.max(120, sz.x - ins.left - ins.right), maxH = Math.max(120, sz.y - top - ins.bottom);
     let w = maxW, h = w / r;
     if (h > maxH) { h = maxH; w = h * r; }
-    const left = (sz.x - w) / 2, t = top + (maxH - h) / 2;
+    const left = ins.left + (maxW - w) / 2, t = top + (maxH - h) / 2;
     this.frameRect = { left, top: t, width: w, height: h };
     const f = document.getElementById('frame');
     Object.assign(f.style, { left: left + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
-    map.setMinZoom(Math.max(0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
-    if (refit) this.fitTo(WORLD_BOUNDS, false);
+    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
+    this.updateMaxBounds();
+    if (refit) this.fitTo(WORLD_BOUNDS, false); else this.clampToFrame();
   },
   frameBounds() {
     const f = this.frameRect;
     const sw = map.containerPointToLatLng([f.left, f.top + f.height]);
     const ne = map.containerPointToLatLng([f.left + f.width, f.top]);
     return L.latLngBounds(sw, ne);
+  },
+  /* Desktop: Leaflet's maxBounds. Phone/tablet: the frame is off-centre (dock, sheets, rail), so the frame (not the screen) is kept inside the world by clampToFrame. */
+  updateMaxBounds() {
+    if (this.printing) return;
+    map.setMaxBounds(mq.phone.matches || mq.tablet.matches ? null : MAX_BOUNDS);
+  },
+  clampToFrame() {
+    if (this.printing || !this.frameRect || !(mq.phone.matches || mq.tablet.matches)) return;
+    const f = this.frameRect, a = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[1][0], MAX_BOUNDS[0][1])), b = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[0][0], MAX_BOUNDS[1][1]));
+    const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (flo + fhi) / 2 - (lo + hi) / 2 : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
+    const dx = fix(a.x, b.x, f.left, f.left + f.width), dy = fix(a.y, b.y, f.top, f.top + f.height);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
   },
   fitTo(bounds, animate = true) {
     const f = this.frameRect, sz = map.getSize();
@@ -318,9 +444,9 @@ const app = window.app = {
     const zz = Math.min(z, 10);
     const pa = map.project(bounds.getSouthWest(), zz), pb = map.project(bounds.getNorthEast(), zz);
     map.setView(map.unproject(pa.add(pb).divideBy(2), zz), zz, { animate });
-    // frame is centred horizontally; shift vertically if frame is off-centre
-    const dy = (f.top + f.height / 2) - sz.y / 2;
-    if (dy) map.panBy([0, -dy], { animate: false });
+    // shift if the frame is off-centre (phone dock/sheets, tablet rail)
+    const dy = (f.top + f.height / 2) - sz.y / 2, dx = (f.left + f.width / 2) - sz.x / 2;
+    if (Math.abs(dx) >= 0.5 || dy) map.panBy([Math.abs(dx) >= 0.5 ? -dx : 0, -dy], { animate: false });
   },
 
   /* ---------- sync from Datastar signals ---------- */
@@ -421,11 +547,12 @@ const app = window.app = {
     this.clearSel();
     const lyr = this.placeLayers[key];
     if (lyr) { lyr.setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 }); this.selected = key; }
+    this._selAt = Date.now();
     const stage = document.getElementById('stage').getBoundingClientRect();
     const x = Math.min(Math.max(8, pt.x + 56), stage.width - 262);
     const y = Math.min(Math.max(8, pt.y - 60), stage.height - 170);
-    patch({ popOpen: true, popName: name, popKey: key, popWords: this.words[key] || '', popX: x, popY: y });
-    setTimeout(() => document.getElementById('popWords').focus({ preventScroll: true }), 0);
+    patch({ panel: '', popOpen: true, popName: name, popKey: key, popWords: this.words[key] || '', popX: x, popY: y });
+    if (!mq.phone.matches) setTimeout(() => document.getElementById('popWords').focus({ preventScroll: true }), 0);
   },
   clearSel() {
     if (this.selected && this.placeLayers[this.selected]) this.placeLayers[this.selected].setStyle({ fillOpacity: 0 });
@@ -501,7 +628,7 @@ const app = window.app = {
     this.printing = true;
     const eff = this.effOrient();
     this.saved = { center: map.getCenter(), zoom: map.getZoom(), sel: this.selected, minZoom: map.getMinZoom() };
-    map.setMaxBounds(null); map.setMinZoom(0);
+    map.setMaxBounds(null); map.setMinZoom(-3);
     const bounds = this.frameBounds();
     this.clearSel();
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
@@ -519,7 +646,7 @@ const app = window.app = {
     if (!this.printing) return;
     this.printing = false;
     document.body.classList.remove('printing');
-    map.setMaxBounds([[-80, -200], [85, 200]]); map.setMinZoom(this.saved.minZoom);
+    map.setMaxBounds(MAX_BOUNDS); map.setMinZoom(this.saved.minZoom);
     map.invalidateSize({ animate: false });
     map.setView(this.saved.center, this.saved.zoom, { animate: false });
     if (this.saved.sel && this.placeLayers[this.saved.sel]) this.placeLayers[this.saved.sel].setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 }), this.selected = this.saved.sel;
@@ -564,10 +691,11 @@ const app = window.app = {
     } finally { this.endPrint(); }
   },
   setBusy(b) {
-    const btn = document.getElementById('printBtn'), lbl = document.getElementById('printLbl');
-    if (!btn) return;
-    btn.disabled = b; btn.setAttribute('aria-busy', b ? 'true' : 'false');
-    if (lbl) lbl.textContent = b ? 'Making page\u2026' : 'Print';
+    for (const btn of document.querySelectorAll('.js-print')) { btn.disabled = b; btn.setAttribute('aria-busy', b ? 'true' : 'false'); }
+    for (const lbl of document.querySelectorAll('.js-printlbl')) {
+      if (lbl.dataset.idle == null) lbl.dataset.idle = lbl.textContent;
+      lbl.textContent = b ? (lbl.dataset.busy || 'Making page\u2026') : lbl.dataset.idle;
+    }
   },
   async print() {
     if (this.busy || this.printing) return;
@@ -612,14 +740,21 @@ app.dlReady = (async () => {
 })();
 window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); app.print(); }
-  if (e.key === 'Escape') app.closePop();
+  if (e.key === 'Escape') { app.closePop(); patch({ panel: '' }); }
 });
-new ResizeObserver(() => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); }).observe(document.getElementById('map'));
+const relayout = () => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); };
+const ro = new ResizeObserver(relayout);
+/* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
+for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el);
+mq.phone.addEventListener('change', relayout); mq.tablet.addEventListener('change', relayout);
 
 for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });
 map.on('zoomend', () => app.renderLabels());
+map.on('moveend', () => app.clampToFrame());
 map.on('click', (e) => {
   if (!app.s) return;
+  if (Date.now() - (app._selAt || 0) < 100) return; /* the same tap just opened a place sheet */
+  if (mq.phone.matches && document.querySelector('.app').classList.contains('has-sheet')) { app.clearSel(); patch({ panel: '', popOpen: false }); return; }
   if (app.s.tool === 'text') {
     const { t } = app.addTag(e.latlng, '');
     t.focus();
