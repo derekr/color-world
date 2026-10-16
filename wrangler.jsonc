@@ -1,0 +1,10 @@
+// Cloudflare Worker that serves the repo root as static assets.
+{
+  "name": "color-world",
+  "compatibility_date": "2026-10-16",
+  "assets": {
+    "directory": "."
+  },
+  // Workers Builds runs `wrangler preview` for non-production branches, which needs this block.
+  "previews": {}
+}
