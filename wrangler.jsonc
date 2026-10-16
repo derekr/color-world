@@ -1,0 +1,8 @@
+// Cloudflare Worker that serves the repo root as static assets.
+{
+  "name": "color-world",
+  "compatibility_date": "2026-10-16",
+  "assets": {
+    "directory": "."
+  }
+}
