@@ -699,4 +699,5 @@ app.layoutFrame(true);
 requestAnimationFrame(() => {
   map.invalidateSize({ animate: false }); app.layoutFrame(true);
   const f = document.getElementById('frame'); f.offsetWidth; f.classList.add('ready'); /* show it in place, transitions on from here */
+  document.getElementById('stage').classList.add('framed'); /* the empty white page fades in; the outlines follow with .drawn */
 });
