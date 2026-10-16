@@ -254,7 +254,7 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 </style>
 </head>
 <body>
-<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,contNames:false,oceanNames:false,grid:false,equator:false,featPage:0,featView:'',contBadge:'6/7',cAfrica:true,cAntarctica:false,cAsia:true,cEurope:true,cNorthAmerica:true,cOceania:true,cSouthAmerica:true,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="((s) => window.app && window.app.sync(s))({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,contNames:$contNames,oceanNames:$oceanNames,grid:$grid,equator:$equator,cAfrica:$cAfrica,cAntarctica:$cAntarctica,cAsia:$cAsia,cEurope:$cEurope,cNorthAmerica:$cNorthAmerica,cOceania:$cOceania,cSouthAmerica:$cSouthAmerica,orient:$orient,tool:$tool})">
+<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,contNames:false,oceanNames:false,grid:false,equator:false,featPage:0,featView:'',contBadge:'7/7',cAfrica:true,cAntarctica:true,cAsia:true,cEurope:true,cNorthAmerica:true,cOceania:true,cSouthAmerica:true,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="((s) => window.app && window.app.sync(s))({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,contNames:$contNames,oceanNames:$oceanNames,grid:$grid,equator:$equator,cAfrica:$cAfrica,cAntarctica:$cAntarctica,cAsia:$cAsia,cEurope:$cEurope,cNorthAmerica:$cNorthAmerica,cOceania:$cOceania,cSouthAmerica:$cSouthAmerica,orient:$orient,tool:$tool})">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
 <symbol id="ic-names" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20l7-9 11 2 8 6 6 10-6 8-13 2-10-5z" fill="#fff"/><path d="M15 26h18M15 33h11" stroke-width="4"/></g></symbol>
@@ -430,8 +430,9 @@ import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
-const MAX_BOUNDS = [[-80, -200], [85, 200]];
+const MAX_BOUNDS = [[-86, -200], [85, 200]];
 const WORLD_BOUNDS = L.latLngBounds([-56, -190], [78, 192]);
+const FULL_BOUNDS = L.latLngBounds([-84, -190], [83, 192]);
 /* Keep Russia and Alaska whole across the 180° line: Chukotka moves east of 180, the western Aleutians west of -180. */
 const fixPt = (p) => (p[0] < -169 && p[1] > 64.5) ? [p[0] + 360, p[1]] : (p[0] > 170 && p[1] > 50 && p[1] < 56) ? [p[0] - 360, p[1]] : p;
 const fixCoords = (c) => typeof c[0] === 'number' ? fixPt(c) : c.map(fixCoords);
@@ -444,7 +445,7 @@ const clean = (g) => {
     let cur = [];
     for (const raw of ln) {
       const pt = fixPt(raw), last = cur[cur.length - 1];
-      if (last && (Math.abs(pt[0] - last[0]) > 180 || (Math.abs(Math.abs(pt[0]) - 180) < 0.01 && Math.abs(Math.abs(last[0]) - 180) < 0.01))) { if (cur.length > 1) out.push(cur); cur = []; }
+      if (last && (Math.abs(pt[0] - last[0]) > 180 || (Math.abs(Math.abs(pt[0]) - 180) < 0.01 && Math.abs(Math.abs(last[0]) - 180) < 0.01) || (pt[1] < -89.9 && last[1] < -89.9))) { if (cur.length > 1) out.push(cur); cur = []; }
       cur.push(pt);
     }
     if (cur.length > 1) out.push(cur);
@@ -497,7 +498,7 @@ const map = await mapReady;
 const app = window.app = {
   map, s: null, data: {}, placeLayers: {}, labelMarkers: {}, capMarkers: [], places: [], words: {}, freeTags: [],
   selected: null, countyLayer: null, countiesLoading: false, frameRect: null, printing: false, saved: null,
-  layers: {}, fills: [], vis: new Set(CONTS.map((c) => c[0]).filter((n) => n !== 'Antarctica')), contMarkers: [], oceanMarkers: [],
+  layers: {}, fills: [], vis: new Set(CONTS.map((c) => c[0])), contMarkers: [], oceanMarkers: [],
 
   /* ---------- layout / frame ---------- */
   effOrient() {
@@ -538,13 +539,14 @@ const app = window.app = {
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
-    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
+    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(FULL_BOUNDS, false, pad0) - 0.35));
     this.updateMaxBounds();
     if (refit) this.fitTo(this.visBounds(), false); else this.clampToFrame();
   },
   /* what the view should fit: the usual world frame when all the main continents are on, else the union of the visible ones */
   visBounds() {
     const on = CONTS.map((c) => c[0]).filter((n) => this.vis.has(n));
+    if (on.length === 7) return FULL_BOUNDS;
     if (on.length === 6 && !this.vis.has('Antarctica')) return WORLD_BOUNDS;
     const b = L.latLngBounds([]);
     for (const n of on) b.extend(CONT_BOUNDS[n]);
@@ -993,7 +995,7 @@ map.on('click', (e) => {
     app.data.features = feats.features;
     app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
 
-    // world: every country is tagged with a continent (data/continents.json); Antarctica starts switched off
+    // world: every country is tagged with a continent (data/continents.json); all continents start switched on
     const wc = world.objects.countries;
     const contOf = (o) => (o.id ? cont.ids[o.id] : cont.names[o.properties.name]) || null;
     const gcont = new Map(wc.geometries.map((g) => [g, contOf(g)]));
