@@ -31,11 +31,14 @@ const clean = (g) => {
   }
   return { type: 'MultiLineString', coordinates: out };
 };
-/* Equal Earth (Šavrič, Patterson, Jenny 2018): an equal-area world projection with curved sides, offered as the "Round world" toggle.
-   Same units and pixel scale as Leaflet's Web Mercator, so zoom levels feel alike. Leaflet has no curved CRS of its own: a CRS is just
-   project/unproject, so this one is written out here (the inverse solves for the parametric latitude with a few Newton steps). */
+/* Map shapes beyond Leaflet's Web Mercator. Leaflet has no curved CRS of its own, but a CRS is just project/unproject, so these are
+   written out here, in the same units and pixel scale as Web Mercator so zoom levels feel alike. */
+const R_EARTH = 6378137;
+const mkCRS = (code, projection) => { const sc = 0.5 / (Math.PI * R_EARTH); return L.extend({}, L.CRS.Earth, { code, projection, transformation: new L.Transformation(sc, 0.5, -sc, 0.5) }); };
+/* Equal Earth (Šavrič, Patterson, Jenny 2018), "Round": equal-area, curved sides, flat poles. The inverse solves for the parametric
+   latitude with a few Newton steps. */
 const EE = (() => {
-  const R = 6378137, A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796, M = Math.sqrt(3) / 2, D = Math.PI / 180;
+  const R = R_EARTH, A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796, M = Math.sqrt(3) / 2, D = Math.PI / 180;
   const yOf = (t) => { const l2 = t * t, l6 = l2 * l2 * l2; return t * (A1 + A2 * l2 + l6 * (A3 + A4 * l2)); };
   const dOf = (t) => { const l2 = t * t, l6 = l2 * l2 * l2; return A1 + 3 * A2 * l2 + l6 * (7 * A3 + 9 * A4 * l2); };
   const TMAX = Math.asin(M), YMAX = yOf(TMAX);
@@ -53,9 +56,37 @@ const EE = (() => {
     },
     bounds: L.bounds([-2.7064 * R, -YMAX * R], [2.7064 * R, YMAX * R])
   };
-  const sc = 0.5 / (Math.PI * R);
-  return L.extend({}, L.CRS.Earth, { code: 'EqualEarth', projection, transformation: new L.Transformation(sc, 0.5, -sc, 0.5) });
+  return mkCRS('EqualEarth', projection);
 })();
+/* Winkel Tripel, "Globe": curved poles, the National Geographic world map. It has no closed-form inverse, so unproject runs a damped
+   2D Newton solve from a linear first guess. */
+const WT = (() => {
+  const R = R_EARTH, D = Math.PI / 180, C1 = 2 / Math.PI;
+  const fwd = (lng, lat) => {
+    const l = lng * D, f = Math.max(-90, Math.min(90, lat)) * D, a = Math.acos(Math.cos(f) * Math.cos(l / 2)), si = a ? Math.sin(a) / a : 1;
+    return [0.5 * (l * C1 + 2 * Math.cos(f) * Math.sin(l / 2) / si), 0.5 * (f + Math.sin(f) / si)];
+  };
+  const projection = {
+    project(ll) { const [x, y] = fwd(ll.lng, ll.lat); return L.point(R * x, R * y); },
+    unproject(p) {
+      const x = p.x / R, y = p.y / R, h = 1e-6;
+      let lng = x / ((1 + C1) / 2) / D, lat = Math.max(-90, Math.min(90, y / D));
+      for (let i = 0; i < 25; i++) {
+        const [fx, fy] = fwd(lng, lat), ex = fx - x, ey = fy - y;
+        if (Math.abs(ex) + Math.abs(ey) < 1e-12) break;
+        const [ax, ay] = fwd(lng + h, lat), [bx, by] = fwd(lng, lat + h), j11 = (ax - fx) / h, j21 = (ay - fy) / h, j12 = (bx - fx) / h, j22 = (by - fy) / h;
+        const det = j11 * j22 - j12 * j21;
+        if (!det) break;
+        lng = Math.max(-360, Math.min(360, lng - (j22 * ex - j12 * ey) / det));
+        lat = Math.max(-90, Math.min(90, lat - (j11 * ey - j21 * ex) / det));
+      }
+      return L.latLng(lat, lng);
+    },
+    bounds: L.bounds([-fwd(180, 0)[0] * R, -fwd(0, 90)[1] * R], [fwd(180, 0)[0] * R, fwd(0, 90)[1] * R])
+  };
+  return mkCRS('WinkelTripel', projection);
+})();
+const SHAPES = { flat: L.CRS.EPSG3857, round: EE, globe: WT };
 const STATE_Z = 4;
 const CONTS = [['Africa', 'cAfrica'], ['Antarctica', 'cAntarctica'], ['Asia', 'cAsia'], ['Europe', 'cEurope'], ['North America', 'cNorthAmerica'], ['Oceania', 'cOceania'], ['South America', 'cSouthAmerica']];
 const NA = 'North America';
@@ -230,7 +261,7 @@ const app = window.app = {
       L_.coast.setStyle({ weight: s.wNation });
       s.grid ? L_.grid.addTo(map) : L_.grid.remove();
       s.equator ? L_.equator.addTo(map) : L_.equator.remove();
-      s.round ? L_.rim.addTo(map) : L_.rim.remove();
+      s.proj !== 'flat' ? L_.rim.addTo(map) : L_.rim.remove();
       L_.rim.setStyle({ weight: s.wNation });
     }
     if (s.showCounties && na && !this.countyLayer && !this.countiesLoading) this.loadCounties();
@@ -245,24 +276,24 @@ const app = window.app = {
       back(L_.states); back(L_.countries);
       for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
     }
-    if (!!s.round !== (map.options.crs === EE)) this.setProjection(s.round);
+    if ((SHAPES[s.proj] || SHAPES.flat) !== map.options.crs) this.setProjection(s.proj);
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
     else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds(), false); }
     this.renderLabels();
   },
-  /* swap Mercator for Equal Earth (or back): every layer re-projects on viewreset, then the view refits */
-  setProjection(round) {
-    map.options.crs = round ? EE : L.CRS.EPSG3857;
+  /* swap the map shape: every layer re-projects on viewreset, then the view refits */
+  setProjection(shape) {
+    map.options.crs = SHAPES[shape] || SHAPES.flat;
     map.options.minZoom = -3; /* so layoutFrame's new minimum can't start a zoom animation that lands after the refit */
     map._resetView(map.getCenter(), map.getZoom(), true);
     if (this.layers.grid) this.drawGrid();
     this.userMoved = false;
     if (this.frameRect) { this.fitTo(this.visBounds(), false); this.layoutFrame(true); }
   },
-  /* lat/long grid every 30 degrees, and the equator + tropics. Mercator runs them past the map edge; Equal Earth stops them at its rim
-     and gives them enough points to bend with it. */
+  /* lat/long grid every 30 degrees, and the equator + tropics. Mercator runs them past the map edge; the curved shapes stop them at
+     their rim and give them enough points to bend with it. */
   drawGrid() {
-    const round = map.options.crs === EE, e = round ? 180 : 200, p = round ? 90 : 85;
+    const round = map.options.crs !== L.CRS.EPSG3857, e = round ? 180 : 200, p = round ? 90 : 85;
     const line = (f) => Array.from({ length: 41 }, (_, i) => f(i / 40)), par = (la) => line((t) => [la, -e + 2 * e * t]);
     const grid = [];
     for (let la = -60; la <= 60; la += 30) grid.push(par(la));
@@ -711,9 +742,9 @@ map.on('click', (e) => {
     app.layers.grid = L.polyline([], { ...dash, weight: 0.9, dashArray: '2 6', opacity: 0.8 });
     app.layers.equator = L.polyline([], { ...dash, weight: 1.75, dashArray: '9 7' });
     app.drawGrid();
-    /* the round world's edge, drawn like the coastline */
-    const edge = Array.from({ length: 91 }, (_, i) => -90 + 2 * i);
-    app.layers.rim = L.polyline([...edge.map((la) => [la, -180]), ...edge.reverse().map((la) => [la, 180]), [-90, -180]], { ...base, weight: 2 });
+    /* the curved shapes' edge, drawn like the coastline: both 180° meridians and the poles (a curve in Winkel Tripel) */
+    const st = (n, f) => Array.from({ length: n + 1 }, (_, i) => f(i / n));
+    app.layers.rim = L.polyline([...st(90, (t) => [-90 + 180 * t, -180]), ...st(90, (t) => [90, -180 + 360 * t]), ...st(90, (t) => [90 - 180 * t, 180]), ...st(90, (t) => [-90, 180 - 360 * t])], { ...base, weight: 2 });
 
     const mkLbl = (lat, lng) => L.marker([lat, lng], { icon: L.divIcon({ className: 'lbl-wrap', html: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     for (const l of app.data.labels) app.labelMarkers[l.name] = mkLbl(l.lat, l.lng);
@@ -751,7 +782,7 @@ map.on('click', (e) => {
 })();
 
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
-app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool','round'].map((k) => [k, root[k]])));
+app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool','proj'].map((k) => [k, root[k]])));
 
 /* initial frame + fit */
 app.layoutFrame(true);
