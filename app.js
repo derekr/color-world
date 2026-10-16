@@ -127,7 +127,7 @@ rocket('color-map', {
     const m = L.map(refs.container, {
       zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
       wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, renderer: L.svg({ padding: 0.5 }),
-      worldCopyJump: false, doubleClickZoom: false
+      worldCopyJump: false, doubleClickZoom: false, trackResize: false /* relayout below handles resizes */
     });
     m.setView(props.center, props.zoom);
     cleanup(() => m.remove());
@@ -176,7 +176,7 @@ const app = window.app = {
     const left = ins.left + (maxW - w) / 2, t = top + (maxH - h) / 2;
     this.frameRect = { left, top: t, width: w, height: h };
     const f = document.getElementById('frame');
-    Object.assign(f.style, { left: left + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
+    Object.assign(f.style, { transform: `translate(${left}px,${t}px)`, width: w + 'px', height: h + 'px' }); // transform, so moves aren't layout shifts (see .frame)
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(eff) });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
@@ -655,10 +655,16 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { app.closePop(); patch({ panel: '' }); }
 });
 const relayout = () => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); };
-const ro = new ResizeObserver(relayout);
+/* refitting redraws every outline, so a burst of resizes (dragging the window edge) runs one relayout at the start and one once it settles */
+let rlTimer = 0, rlPending = false;
+const relayoutSoon = () => {
+  if (rlTimer) { clearTimeout(rlTimer); rlPending = true; } else relayout();
+  rlTimer = setTimeout(() => { rlTimer = 0; if (rlPending) { rlPending = false; relayout(); } }, 150);
+};
+const ro = new ResizeObserver(relayoutSoon);
 /* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
 for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el);
-mq.phone.addEventListener('change', relayout); mq.tablet.addEventListener('change', relayout);
+mq.phone.addEventListener('change', relayoutSoon); mq.tablet.addEventListener('change', relayoutSoon);
 
 for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });
 map.on('zoomend', () => app.renderLabels());
