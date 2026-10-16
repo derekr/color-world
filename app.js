@@ -678,6 +678,7 @@ map.on('click', (e) => {
       if (app.s) app.sync(app.s);
     }).catch((e) => console.error('detailed world map failed', e));
   } catch (e) { console.error('data load failed', e); }
+  finally { requestAnimationFrame(() => document.getElementById('stage').classList.add('drawn')); }
 })();
 
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */

@@ -59,8 +59,9 @@ header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 20px;
 .grow{flex:1}
 .work{display:flex;flex-wrap:wrap;flex:1;min-height:0}
 aside{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column;gap:16px;padding:20px;border-right:2px solid var(--ink);background:var(--paper)}
-main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(100vh - 68px);background:#fff}
+main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(100vh - 68px);background:#F6F1E8} /* the frame shade over white, so the stage matches the map's surroundings before it fades in */
 #map{position:absolute;inset:0;background:#fff;font-family:inherit}
+#map{opacity:0;transition:opacity .4s ease-out}#stage.drawn #map{opacity:1} /* app.js adds .drawn once the outlines are on it: fade in instead of a blank white flash */
 #map.tool-text{cursor:crosshair}
 #map .leaflet-interactive{cursor:inherit}
 #map.tool-move .leaflet-interactive{cursor:pointer}
@@ -136,8 +137,10 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .tools .btn{box-shadow:none;border-radius:14px}
 .pageseg{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:1000;box-shadow:0 3px 0 var(--ink)}
 .zoom{position:absolute;right:20px;bottom:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
-.frame{position:absolute;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:left .3s,top .3s,width .3s,height .3s}
-.frame:not(.ready){visibility:hidden;transition:none} /* app.js places it, then adds .ready: no slide-in from 0,0 on load */
+.frame{position:absolute;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:left .3s,top .3s,width .3s,height .3s,opacity .4s ease-out}
+#stage:not(.drawn) .frame{opacity:0}
+.frame:not(.ready){visibility:hidden;transition:none}
+@media (prefers-reduced-motion:reduce){#map,.frame{transition:none}} /* app.js places it, then adds .ready: no slide-in from 0,0 on load */
 .frame .tag{position:absolute;top:-36px;right:-3px;padding:5px 12px 3px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;font-weight:700;white-space:nowrap}
 .pop{position:absolute;z-index:1100;width:250px;padding:14px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:0 5px 0 var(--ink);display:flex;flex-direction:column;gap:10px}
 .pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
