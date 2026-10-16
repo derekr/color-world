@@ -1,6 +1,6 @@
 # Color World
 
-A kid-friendly map you can turn into an 8.5 × 11 coloring page. Pick a place, toggle country, state and county lines, adjust line weights, add names, capitals or your own words, then print. You can also drop your own GeoJSON, TopoJSON or CSV (latitude/longitude columns) on the map: it is drawn in the same style and added as a toggleable tile under Features → My data, kept in the browser between visits.
+A kid-friendly map you can turn into an 8.5 × 11 coloring page. Pick a place, toggle country, state and county lines, adjust line weights, add names, capitals or your own words, then print. You can also drop your own GeoJSON, TopoJSON or CSV (latitude/longitude columns) on the map: it is drawn in the same style and added as a toggleable tile under Features → My data, kept in the browser between visits. Share link copies a link to the current page: the view and map settings go in the URL fragment (never sent to the server), rounded and capped at region scale, and typed words and My data are left out.
 
 It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com) for the map and [Datastar + Rocket](https://data-star.dev) signals for the UI. The custom data feature lives in its own module, `datasets.js`, which `index.html` modulepreloads. No build step: serve the folder with any static server, e.g. `python3 -m http.server` (the translated pages need `npx wrangler dev`, see Locales).
 

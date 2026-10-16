@@ -598,6 +598,78 @@ const app = window.app = {
   }
 };
 
+/* ---------- share links ----------
+   Share link puts the view and the map settings in the URL fragment (#…), which browsers never send to the server. Words
+   typed on the map and anything under My data stay out of it, and the view is rounded and capped at region scale so a
+   link can't point at a street. Settings at their page default are left out to keep links short. */
+const SHARE_KEYS = ['showCountries', 'wCountry', 'showStates', 'wState', 'showCounties', 'wCounty', 'wNation', 'names', 'capitals', 'tornado', 'mine', 'hollow', 'contNames', 'oceanNames', 'grid', 'equator', ...CONTS.map((c) => c[1]), 'orient', 'proj'];
+const SHARE_ENUMS = { orient: ['auto', 'landscape', 'portrait'], proj: Object.keys(SHAPES) };
+const SHARE_DEFAULTS = Object.fromEntries(SHARE_KEYS.map((k) => [k, root[k]]));
+const SHARE_W = 1000, SHARE_MAX_Z = 9; /* zoom is stored as if the frame were 1000px wide, so it means the same on any screen */
+Object.assign(app, {
+  shareUrl() {
+    const p = new URLSearchParams(), f = this.frameRect;
+    const c = map.containerPointToLatLng([f.left + f.width / 2, f.top + f.height / 2]);
+    const z = Math.min(SHARE_MAX_Z, map.getZoom() + Math.log2(SHARE_W / f.width));
+    p.set('at', [c.lat.toFixed(2), c.lng.toFixed(2), z.toFixed(2)].join(','));
+    for (const k of SHARE_KEYS) {
+      const v = k === 'orient' ? this.effOrient() : root[k]; /* the page as it looks now, even if the other screen is turned the other way */
+      if (v !== SHARE_DEFAULTS[k]) p.set(k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
+    }
+    return location.origin + location.pathname + '#' + p.toString().replace(/%2C/g, ',');
+  },
+  /* the settings and view in a share fragment, checked against what the controls allow; null if it isn't one */
+  readShare(hash) {
+    const p = new URLSearchParams(hash.replace(/^#/, ''));
+    if (!p.has('at')) return null;
+    const sig = {};
+    for (const k of SHARE_KEYS) {
+      const d = SHARE_DEFAULTS[k], v = p.get(k);
+      if (v == null) sig[k] = d;
+      else if (typeof d === 'boolean') sig[k] = v === '1';
+      else if (typeof d === 'number') { const n = parseFloat(v); sig[k] = Number.isFinite(n) ? Math.max(0.25, Math.min(8, n)) : d; }
+      else sig[k] = SHARE_ENUMS[k].includes(v) ? v : d;
+    }
+    if (!CONTS.some((c) => sig[c[1]])) for (const c of CONTS) sig[c[1]] = true; /* at least one continent stays on */
+    const [lat, lng, z] = p.get('at').split(',').map(Number);
+    const at = [lat, lng, z].every(Number.isFinite) ? { lat: Math.max(-85, Math.min(85, lat)), lng: Math.max(-360, Math.min(360, lng)), z: Math.min(SHARE_MAX_Z, z) } : null;
+    return { sig, at };
+  },
+  /* centre the frame on a shared view, scaled to this screen's frame */
+  showShared(at) {
+    const f = this.frameRect, sz = map.getSize();
+    const z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), at.z - Math.log2(SHARE_W / f.width)));
+    const dx = (f.left + f.width / 2) - sz.x / 2, dy = (f.top + f.height / 2) - sz.y / 2;
+    map.setView(map.unproject(map.project([at.lat, at.lng], z).subtract([dx, dy]), z), z, { animate: false });
+    this.userMoved = true;
+  },
+  /* apply a share fragment, then drop it from the address bar so it doesn't go stale as the page changes */
+  takeShare() {
+    const sh = this.readShare(location.hash);
+    if (!sh) return null;
+    history.replaceState(null, '', location.pathname + location.search);
+    this.closePop();
+    patch(sh.sig);
+    if (sh.at) this.userMoved = true;
+    return sh;
+  },
+  async share() {
+    const url = this.shareUrl();
+    if (mq.phone.matches && navigator.share) {
+      try { await navigator.share({ url, title: document.title }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); this.toast(i18n('Link copied')); }
+    catch (e) { window.prompt(i18n('Copy this link'), url); }
+  },
+  toast(msg) {
+    clearTimeout(this._toastT);
+    patch({ toast: msg });
+    this._toastT = setTimeout(() => patch({ toast: '' }), 2200);
+  }
+});
+/* a share link opened in a tab that already has the page */
+window.addEventListener('hashchange', () => { const sh = app.takeShare(); if (sh && sh.at) requestAnimationFrame(() => app.showShared(sh.at)); });
+
 /* Features pager: swipe left/right (40px) to change page; a swipe never also presses the tile under the finger */
 {
   const pager = document.getElementById('featPager');
@@ -807,6 +879,7 @@ map.on('click', (e) => {
   finally { requestAnimationFrame(() => document.getElementById('stage').classList.add('drawn')); }
 })();
 
+const shared = app.takeShare(); /* a share link: its settings go in before the first sync */
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
 app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool','proj'].map((k) => [k, root[k]])));
 
@@ -814,6 +887,7 @@ app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','s
 app.layoutFrame(true);
 requestAnimationFrame(() => {
   map.invalidateSize({ animate: false }); app.layoutFrame(true);
+  if (shared && shared.at) app.showShared(shared.at);
   const f = document.getElementById('frame'); f.offsetWidth; f.classList.add('ready'); /* show it in place, transitions on from here */
   document.getElementById('stage').classList.add('framed'); /* the empty white page fades in; the outlines follow with .drawn */
 });
