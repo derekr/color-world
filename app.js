@@ -678,6 +678,7 @@ map.on('click', (e) => {
       if (app.s) app.sync(app.s);
     }).catch((e) => console.error('detailed world map failed', e));
   } catch (e) { console.error('data load failed', e); }
+  finally { requestAnimationFrame(() => document.getElementById('stage').classList.add('drawn')); }
 })();
 
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
@@ -685,4 +686,7 @@ app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','s
 
 /* initial frame + fit */
 app.layoutFrame(true);
-requestAnimationFrame(() => { map.invalidateSize({ animate: false }); app.layoutFrame(true); });
+requestAnimationFrame(() => {
+  map.invalidateSize({ animate: false }); app.layoutFrame(true);
+  const f = document.getElementById('frame'); f.offsetWidth; f.classList.add('ready'); /* show it in place, transitions on from here */
+});
