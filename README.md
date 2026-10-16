@@ -7,13 +7,13 @@ It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com)
 ## Data and libraries
 
 - US states and counties: [us-atlas](https://github.com/topojson/us-atlas) (US Census Bureau)
-- World countries: [world-atlas](https://github.com/topojson/world-atlas); label points, capitals and provinces: [Natural Earth](https://www.naturalearthdata.com) (public domain)
+- World countries: [world-atlas](https://github.com/topojson/world-atlas) (`world-110m.json` is drawn first for a quick first paint, then `world-50m.json` replaces it); label points, capitals and provinces: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - `samples/` holds the example files offered under Add data, made from the data above plus a few hand-placed points (national parks, Route 66, a road trip).
 - Tornado counts in `data/tornadoes.json` are placeholders and need a real source.
 - Vendored (no build step, see `vendor/` and `fonts/`):
   - Leaflet 1.9.4 (BSD-2-Clause)
-  - Datastar 1.0.4 + Rocket beta.2, one bundle `vendor/datastar-rocket.js` (MIT)
+  - Datastar 1.0.4 + Rocket beta.2, one bundle `vendor/datastar-rocket.js` (MIT). Patched: Rocket's MutationObserver scans each changed element once per batch instead of once per mutation record, which saves ~130 ms of main-thread work when Leaflet draws the map.
   - topojson-client 3.1.0 (ISC)
   - html2canvas 1.4.1 (MIT), loaded on demand for PDF export
   - jsPDF 2.5.2 (MIT), loaded on demand for PDF export
-  - Baloo 2 latin 500/600/700/800 woff2 from `@fontsource/baloo-2` 5.3.0 (SIL OFL 1.1, `fonts/OFL.txt`)
+  - Baloo 2 latin 600/700/800 woff2 from `@fontsource/baloo-2` 5.3.0 (SIL OFL 1.1, `fonts/OFL.txt`)
