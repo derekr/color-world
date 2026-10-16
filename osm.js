@@ -13,6 +13,7 @@
    - Each shape keeps a kind and, for streets and public places, a name. House numbers, addresses, building names and
      every other tag are dropped.
    - Nothing is logged: no console calls, Workers Logs and Logpush off in wrangler.jsonc, no cookies set.
+   - Only the two public Overpass servers in OVERPASS are ever asked, with the same request.
    - Tiles are cached by Cloudflare (Workers Caching, "cache" in wrangler.jsonc) for a month and shared by everyone, so
      most views never reach Overpass at all. Simultaneous requests for the same tile run the Worker once.
 
@@ -20,7 +21,9 @@
    closed shapes with no seam at the tile edge. The browser drops the copies it gets from neighbouring tiles by id. */
 
 export const ZOOM = 14;
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
+// The main public Overpass server, and a second public one asked only if the first hasn't answered in HEDGE ms
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const HEDGE = 4000;
 const AGENT = 'color-world (https://github.com/derekr/color-world)';
 const TTL = 60 * 60 * 24 * 30; // a month: streets change slowly, and every hit is one less request to Overpass
 const STALE = 60 * 60 * 24 * 7; // after that, serve the old tile at once for a week while a fresh one is fetched
@@ -36,6 +39,9 @@ export function tileFromUrl(url) {
   return x < n && y < n ? { x, y, buildings: !!m[3] } : null;
 }
 
+/* Driveways, parking aisles and sidewalks are left out of the query: in a city they're most of the ways, slow to
+   fetch, and too small to color. */
+
 /* The tile's edges in degrees: [south, west, north, east] */
 export function tileBounds({ x, y }) {
   const n = 2 ** ZOOM;
@@ -49,7 +55,8 @@ export function query(bounds, buildings) {
   if (buildings) return `[out:json][timeout:25][bbox:${bbox}];way[building];out geom qt;`;
   return `[out:json][timeout:25][bbox:${bbox}];
 (
-  way[highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|service|footway|path|cycleway|track|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
+  way[highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|path|cycleway|track|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
+  way[highway=footway][footway!~"^(sidewalk|crossing)$"];
   way[railway~"^(rail|light_rail|tram)$"];
   way[waterway~"^(river|stream|canal)$"];
   nwr[natural=water];
@@ -166,21 +173,52 @@ export function toGeoJSON(data) {
 const json = (status, body, extra = {}) =>
   new Response(body, { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff', ...extra } });
 
+/* Ask the first Overpass server; if it hasn't answered in HEDGE ms, or fails, ask the next as well. The first good
+   answer wins and the other request is cancelled. → { data } or { why } (the last server's status) */
+function ask(body) {
+  const stops = [];
+  let done = false, timer;
+  return new Promise((resolve) => {
+    let left = OVERPASS.length, why = 'unreachable', next = 0;
+    const start = () => {
+      clearTimeout(timer);
+      if (done || next >= OVERPASS.length) return;
+      const stop = new AbortController();
+      stops.push(stop);
+      fetch(OVERPASS[next++], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': AGENT },
+        body,
+        signal: stop.signal,
+      })
+        .then(async (up) => {
+          const data = up.ok ? await up.json().catch(() => null) : null;
+          if (data && !/error/i.test(data.remark || '')) return resolve({ data });
+          why = up.ok ? 'query failed' : up.status;
+          start();
+        })
+        .catch(() => start())
+        .finally(() => --left || resolve({ why }));
+      if (next < OVERPASS.length) timer = setTimeout(start, HEDGE);
+    };
+    start();
+  }).finally(() => {
+    done = true;
+    clearTimeout(timer);
+    stops.forEach((s) => s.abort());
+  });
+}
+
 export async function osmTile(req) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store' } });
   const tile = tileFromUrl(new URL(req.url));
   if (!tile) return json(404, '{"error":"not a tile"}', { 'Cache-Control': 'no-store' });
 
   // A brand-new request: none of the visitor's headers are copied onto it
-  const up = await fetch(OVERPASS, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': AGENT },
-    body: 'data=' + encodeURIComponent(query(tileBounds(tile), tile.buildings)),
-  }).catch(() => null);
-  const data = up?.ok ? await up.json().catch(() => null) : null;
-  if (!data || /error/i.test(data.remark || '')) {
+  const body = 'data=' + encodeURIComponent(query(tileBounds(tile), tile.buildings));
+  const { data, why } = await ask(body);
+  if (!data) {
     // Overpass's own status (429 busy, 504 timed out…) says why; nothing about the visitor is in it
-    const why = up ? (up.ok ? 'query failed' : up.status) : 'unreachable';
     return json(503, JSON.stringify({ error: 'street data is busy, try again in a minute', overpass: why }), { 'Retry-After': '60', 'Cache-Control': 'no-store' });
   }
   // Cached by Cloudflare for everyone (wrangler.jsonc "cache"), keyed by the path alone, which is just the tile

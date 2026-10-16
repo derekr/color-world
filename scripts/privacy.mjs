@@ -10,7 +10,8 @@
    - The page never reads location, sets cookies or sends beacons: no navigator.geolocation, document.cookie,
      sendBeacon, WebSocket, EventSource or RTCPeerConnection.
    - worker.js and osm.js never call console, so nothing about a request can end up in a log.
-   - osm.js makes exactly one outbound request, to Overpass, and never reads the visitor's request headers.
+   - osm.js makes outbound requests from one place only, to the two public Overpass servers in OVERPASS, and never
+     reads the visitor's request headers.
    - wrangler.jsonc keeps Workers Logs and Logpush off, with no tail Workers or Analytics Engine.
    - osm.js only accepts /osm/14/<x>/<y>.json, and the shapes it sends carry only a kind and, for streets and public
      places, a name: no addresses, house numbers or building names. Tested against a sample Overpass reply below.
@@ -46,9 +47,11 @@ for (const f of page) {
 const worker = read('worker.js'), osm = read('osm.js');
 for (const [f, src] of [['worker.js', worker], ['osm.js', osm]]) check(!/\bconsole\s*\./.test(src), `${f}: calls console. Nothing about a request may be logged (PRIVACY.md).`);
 const fetches = [...osm.matchAll(/\bfetch\s*\(([^,)]*)/g)].map((m) => m[1].trim());
-check(fetches.length === 1 && fetches[0] === 'OVERPASS', `osm.js: must make exactly one request, fetch(OVERPASS, …); found ${fetches.length ? fetches.join(', ') : 'none'}`);
+check(fetches.length === 1 && fetches[0] === 'OVERPASS[next++]', `osm.js: must request only from one place, fetch(OVERPASS[next++], …); found ${fetches.length ? fetches.join(', ') : 'none'}`);
 check(!/\breq(uest)?\s*\.\s*headers\b/.test(osm), 'osm.js: reads the visitor\'s request headers; the Overpass request must be built from scratch (PRIVACY.md)');
-check(/const OVERPASS = 'https:\/\/overpass-api\.de\/api\/interpreter';/.test(osm), 'osm.js: OVERPASS must stay the public Overpass endpoint, or PRIVACY.md must be updated to name the new one');
+const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+check(osm.includes(`const OVERPASS = ${JSON.stringify(SERVERS).replaceAll('"', "'").replace(',', ', ')};`), 'osm.js: OVERPASS must stay the two public Overpass servers PRIVACY.md names, or PRIVACY.md must be updated to name the new ones');
+for (const host of SERVERS.map((u) => new URL(u).host)) check(read('PRIVACY.md').includes(host), `PRIVACY.md: must name ${host}, which osm.js asks for street data`);
 
 const wrangler = read('wrangler.jsonc');
 check(/"observability"\s*:\s*\{\s*"enabled"\s*:\s*false\s*\}/.test(wrangler), 'wrangler.jsonc: "observability": { "enabled": false } is missing (Workers Logs must stay off)');
@@ -93,8 +96,10 @@ check(!byId.n6, 'osm.js: a bare address point must be left out');
 const { osmTile } = await import(pathToFileURL(join(root, 'osm.js')));
 const sent = [];
 const realFetch = globalThis.fetch;
+// The first server says it's busy, so the second is asked too: both requests must be clean
 globalThis.fetch = async (url, init = {}) => {
   sent.push({ url: String(url), headers: Object.fromEntries(new Headers(init.headers)), body: String(init.body) });
+  if (sent.length === 1) return new Response('busy', { status: 429 });
   return new Response(JSON.stringify(sample), { headers: { 'Content-Type': 'application/json' } });
 };
 const visitor = new Request('https://color-world.perfectdays.dev/osm/14/2621/6331.json', { headers: {
@@ -105,10 +110,11 @@ const res = await osmTile(visitor);
 globalThis.fetch = realFetch;
 check(res.status === 200, `osm.js: a valid tile returned ${res.status}`);
 check(!res.headers.has('set-cookie'), 'osm.js: responses must not set cookies');
-check(sent.length === 1 && sent[0].url === 'https://overpass-api.de/api/interpreter', 'osm.js: must make exactly one request, to Overpass');
-const hdrs = sent[0]?.headers || {};
-check(JSON.stringify(Object.keys(hdrs).sort()) === '["content-type","user-agent"]', `osm.js: the Overpass request may only carry content-type and user-agent; it had ${Object.keys(hdrs).join(', ')}`);
-check(hdrs['user-agent']?.startsWith('color-world '), 'osm.js: the Overpass request must carry our user agent, not the visitor\'s');
+check(JSON.stringify(sent.map((r) => r.url)) === JSON.stringify(SERVERS), `osm.js: a busy first server should lead to one request to each Overpass server, in order; sent to ${sent.map((r) => r.url).join(', ')}`);
+for (const { headers: hdrs } of sent) {
+  check(JSON.stringify(Object.keys(hdrs).sort()) === '["content-type","user-agent"]', `osm.js: the Overpass request may only carry content-type and user-agent; it had ${Object.keys(hdrs).join(', ')}`);
+  check(hdrs['user-agent']?.startsWith('color-world '), 'osm.js: the Overpass request must carry our user agent, not the visitor\'s');
+}
 check(!/203\.0\.113\.7|kid-123|maple|KidTablet|en-US/i.test(JSON.stringify(sent)), 'osm.js: something from the visitor\'s request reached Overpass');
 check(/^public, max-age=\d+/.test(res.headers.get('cache-control') || '') && !res.headers.has('vary'), 'osm.js: tiles must be cached publicly by path alone, so every visitor shares them');
 check(!/\bcaches\b/.test(osm), 'osm.js: use Workers Caching (Cache-Control), not the Cache API');
