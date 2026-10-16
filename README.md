@@ -12,7 +12,7 @@ It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com)
 - Tornado counts in `data/tornadoes.json` are placeholders and need a real source.
 - Vendored (no build step, see `vendor/` and `fonts/`):
   - Leaflet 1.9.4 (BSD-2-Clause)
-  - Datastar 1.0.4 + Rocket beta.2, one bundle `vendor/datastar-rocket.js` (MIT)
+  - Datastar 1.0.4 + Rocket beta.2, one bundle `vendor/datastar-rocket.js` (MIT). Patched: Rocket's MutationObserver scans each changed element once per batch instead of once per mutation record, which saves ~130 ms of main-thread work when Leaflet draws the map.
   - topojson-client 3.1.0 (ISC)
   - html2canvas 1.4.1 (MIT), loaded on demand for PDF export
   - jsPDF 2.5.2 (MIT), loaded on demand for PDF export
