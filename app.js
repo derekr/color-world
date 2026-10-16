@@ -488,7 +488,8 @@ const app = window.app = {
     const rot = eff === 'landscape' && IGNORES_PAGE_SIZE;
     document.body.classList.toggle('print-rot', rot);
     st.textContent = `@page { size: letter ${rot ? 'portrait' : eff}; margin: 0.4in }`;
-    const [pw, ph] = eff === 'landscape' ? [10.2, 7.7] : [7.7, 10.2];
+    /* turned, the map is 0.1in short of the sheet so rounding can't spill a blank second page */
+    const [pw, ph] = eff === 'landscape' ? [rot ? 10.1 : 10.2, 7.7] : [7.7, 10.2];
     document.body.style.setProperty('--pw', pw + 'in');
     document.body.style.setProperty('--ph', ph + 'in');
     document.body.classList.add('printing');
