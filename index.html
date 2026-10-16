@@ -485,7 +485,7 @@ rocket('color-map', {
   onFirstRender: ({ refs, props, cleanup }) => {
     const m = L.map(refs.container, {
       zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: MAX_BOUNDS, maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
+      wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, renderer: L.svg({ padding: 0.5 }),
       worldCopyJump: false, doubleClickZoom: false
     });
     m.setView(props.center, props.zoom);
@@ -564,15 +564,16 @@ const app = window.app = {
     const ne = map.containerPointToLatLng([f.left + f.width, f.top]);
     return L.latLngBounds(sw, ne);
   },
-  /* Desktop: Leaflet's maxBounds. Phone/tablet: the frame is off-centre (dock, sheets, rail), so the frame (not the screen) is kept inside the world by clampToFrame. */
+  /* The frame is off-centre (sidebar, dock, sheets, rail) and hidden continents shift the fit, so the frame (not the screen) is kept inside the world by clampToFrame instead of Leaflet's maxBounds. */
   updateMaxBounds() {
     if (this.printing) return;
-    map.setMaxBounds(mq.phone.matches || mq.tablet.matches ? null : MAX_BOUNDS);
+    map.setMaxBounds(null);
   },
   clampToFrame() {
-    if (this.printing || !this.frameRect || !(mq.phone.matches || mq.tablet.matches)) return;
-    const f = this.frameRect, a = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[1][0], MAX_BOUNDS[0][1])), b = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[0][0], MAX_BOUNDS[1][1]));
-    const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (flo + fhi) / 2 - (lo + hi) / 2 : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
+    if (this.printing || !this.frameRect) return;
+    // keep the visible continents and the frame overlapping: smaller land can roam inside the frame, bigger land must cover it
+    const f = this.frameRect, vb = this.visBounds(), a = map.latLngToContainerPoint(vb.getNorthWest()), b = map.latLngToContainerPoint(vb.getSouthEast());
+    const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (lo < flo ? flo - lo : hi > fhi ? fhi - hi : 0) : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
     const dx = fix(a.x, b.x, f.left, f.left + f.width), dy = fix(a.y, b.y, f.top, f.top + f.height);
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
   },
@@ -582,10 +583,9 @@ const app = window.app = {
     const z = map.getBoundsZoom(bounds, false, pad);
     const zz = Math.min(z, 10);
     const pa = map.project(bounds.getSouthWest(), zz), pb = map.project(bounds.getNorthEast(), zz);
-    map.setView(map.unproject(pa.add(pb).divideBy(2), zz), zz, { animate });
-    // shift if the frame is off-centre (phone dock/sheets, tablet rail)
+    // offset the centre when the frame is off-centre (sidebar, dock/sheets, rail), in one move so animation can't drop it
     const dy = (f.top + f.height / 2) - sz.y / 2, dx = (f.left + f.width / 2) - sz.x / 2;
-    if (Math.abs(dx) >= 0.5 || dy) map.panBy([Math.abs(dx) >= 0.5 ? -dx : 0, -dy], { animate: false });
+    map.setView(map.unproject(pa.add(pb).divideBy(2).subtract([dx, dy]), zz), zz, { animate });
   },
 
   /* ---------- sync from Datastar signals ---------- */
@@ -632,7 +632,7 @@ const app = window.app = {
       for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
     }
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
-    else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds()); }
+    else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds(), false); }
     this.renderLabels();
   },
   /* show/hide everything that belongs to a continent that was switched off or on */
@@ -822,7 +822,7 @@ const app = window.app = {
     if (!this.printing) return;
     this.printing = false;
     document.body.classList.remove('printing');
-    map.setMaxBounds(MAX_BOUNDS); map.setMinZoom(this.saved.minZoom);
+    map.setMinZoom(this.saved.minZoom);
     map.invalidateSize({ animate: false });
     map.setView(this.saved.center, this.saved.zoom, { animate: false });
     if (this.saved.sel && this.placeLayers[this.saved.sel]) this.placeLayers[this.saved.sel].setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 }), this.selected = this.saved.sel;
