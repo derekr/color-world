@@ -17,6 +17,7 @@
 <link rel="preload" href="data/world-provinces-50m.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
 <link rel="preload" href="data/world-capitals.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
 <link rel="preload" href="data/capitals.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/continents.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
 <link rel="preload" href="data/tornadoes.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
@@ -28,7 +29,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);font-family:'Baloo 2','Trebuchet MS',system-ui,sans-serif}
 button{font:inherit;color:inherit}
-button,[role=button],.toggle,.chip,.btn,.rb,.seg button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+button,[role=button],.toggle,.btn,.rb,.tile,.pill,.dotb,.seg button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 color-map{position:absolute;inset:0;display:block}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .app{min-height:100vh;display:flex;flex-direction:column}
@@ -50,9 +51,8 @@ main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(
 .sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--ink);transition:left .15s}
 .toggle[aria-pressed="true"] .sw{background:var(--accent)}
 .toggle[aria-pressed="true"] .sw i{left:25px}
-.chip{display:flex;align-items:center;gap:8px;min-height:52px;padding:6px 12px;border:2px solid var(--ink);border-radius:16px;background:#fff;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 var(--ink);text-align:left;line-height:1.1}
-.chip[aria-pressed="true"]{background:var(--accent)}
-.chip:active,.seg button:active,.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+
+.seg button:active,.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
 .seg{display:flex;gap:6px;padding:5px;border:2px solid var(--ink);border-radius:18px;background:#fff}
 .seg button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:48px;padding:0 12px;border:0;border-radius:12px;background:none;font-size:16px;font-weight:700;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--accent);box-shadow:inset 0 0 0 2px var(--ink)}
@@ -66,11 +66,51 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:var(--track);border:2px solid var(--ink)}
 input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--accent);border:2px solid var(--ink)}
 .field{width:100%;height:46px;padding:0 14px;border:2px solid var(--ink);border-radius:14px;background:var(--paper);font:inherit;font-size:18px;font-weight:600;color:var(--ink)}
-.field:focus,.btn:focus-visible,.chip:focus-visible,.seg button:focus-visible,.toggle:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.field:focus,.btn:focus-visible,.tile:focus-visible,.pill:focus-visible,.dotb:focus-visible,.seg button:focus-visible,.toggle:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
 .search .field{height:48px;padding-left:46px;border-radius:999px}
 .card{display:flex;flex-direction:column;gap:6px;padding:16px;border:2px solid var(--ink);border-radius:22px;background:#fff}
 .card h2{margin:0 0 4px;font-size:15px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .cards{display:flex;flex-direction:column;gap:16px}
+
+/* features panel: game-card tiles, swipeable pages, push/pop sub-views */
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1;min-width:0;padding:6px 4px 8px;border:2px solid var(--ink);border-radius:18px;background:#fff;box-shadow:0 3px 0 var(--ink);cursor:pointer;font-weight:700;text-align:center;line-height:1}
+.tile:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.tile[aria-pressed="true"]{background:var(--accent)}
+.tile .ic{width:var(--ic,40px);height:var(--ic,40px);flex:none}
+.tile .tn{display:flex;align-items:flex-start;justify-content:center;height:var(--tnh,28px);font-size:var(--tnf,13px);line-height:1.05}
+.tile .ck{position:absolute;top:5px;right:5px;width:22px;height:22px}
+.tile .cnt{position:absolute;top:5px;right:5px;display:flex;align-items:center;gap:0;height:22px;padding:0 3px 0 7px;border-radius:99px;background:var(--ink);color:#fff;font-size:12px;font-weight:800;line-height:1}
+.tile .cnt svg{width:12px;height:12px}
+.fv{display:grid;overflow:hidden}
+.fv-pane{grid-area:1/1;min-width:0;transition:transform .3s cubic-bezier(.3,.8,.3,1),visibility 0s linear .3s}
+.fv-root{visibility:visible;transform:none}
+.fv-sub{visibility:hidden;transform:translateX(100%)}
+.fv.sub .fv-root{visibility:hidden;transform:translateX(-100%)}
+.fv:not(.sub) .fv-root,.fv-sub.on{transition:transform .3s cubic-bezier(.3,.8,.3,1),visibility 0s}
+.fv-sub.on{visibility:visible;transform:none}
+.fp-nav{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.pills{display:flex;gap:6px}
+.pill{height:34px;padding:2px 14px 0;border:2px solid var(--ink);border-radius:999px;background:#fff;font-size:16px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pill[aria-pressed="true"]{background:var(--ink);color:#fff}
+.fp-arrows{display:none;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;font-size:22px;font-weight:800}
+.arw{width:40px;height:40px;padding:0;border-radius:12px}
+.arw[disabled]{opacity:.3;cursor:default}
+.pager{overflow:hidden;padding-bottom:6px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.track{display:flex;transform:translateX(calc(var(--p,0) * -100%));transition:transform .3s cubic-bezier(.3,.8,.3,1)}
+.page{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;flex:0 0 100%;min-width:0;align-content:start}
+.dots{display:flex;justify-content:center;margin-top:-2px}
+.dotb{padding:9px 5px;border:0;background:none;cursor:pointer}
+.dotb i{display:block;width:10px;height:10px;border-radius:99px;border:2px solid var(--ink);background:#fff;transition:width .2s}
+.dotb[aria-pressed="true"] i{width:28px;background:var(--accent)}
+.sub-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:22px;font-weight:800}
+.fv-sub .page{padding-bottom:6px}
+@media (prefers-reduced-motion:reduce){.fv-pane,.track,.dotb i,.tile{transition:none!important}}
+@media (min-width:1100px){
+  aside{flex-basis:340px;max-width:380px;max-height:calc(100vh - 68px);overflow:auto}
+  .tile{--ic:34px;--tnh:26px;--tnf:12.5px}
+  .fp-nav{display:none}
+  .fp-arrows{display:flex}
+}
 
 /* map overlays */
 .tools{position:absolute;left:20px;top:20px;z-index:1000;display:flex;gap:8px;padding:6px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:0 3px 0 var(--ink)}
@@ -121,7 +161,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
   .rb:active{transform:none}
   .rb[aria-pressed="true"]{background:var(--accent);box-shadow:inset 0 0 0 2px var(--ink)}
   .rb-print{display:none}
-  .rb-move{order:1}.rb-words{order:2}.rb-lines{order:3}.rb-labels{order:4}
+  .rb-move{order:1}.rb-words{order:2}.rb-lines{order:3}.rb-features{order:4}
   aside{left:116px;top:16px;width:340px;max-width:calc(100% - 132px);max-height:calc(100% - 32px)}
   .card.open{max-height:calc(100dvh - 68px - 32px);box-shadow:0 5px 0 var(--ink)}
 }
@@ -139,7 +179,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
   #dock{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 12px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:2px solid var(--ink);border-radius:24px 24px 0 0}
   .rb{min-height:64px}
   .rb-move{display:none}
-  .rb-lines{order:1}.rb-labels{order:2}.rb-words{order:3}.rb-print{order:4}
+  .rb-lines{order:1}.rb-features{order:2}.rb-words{order:3}.rb-print{order:4}
   .pageseg{bottom:calc(106px + env(safe-area-inset-bottom));padding:4px;gap:4px;border-radius:16px}
   .pageseg button{min-width:48px;padding:0 10px;font-size:15px}
   .has-sheet #dock,.has-sheet .pageseg{display:none}
@@ -151,6 +191,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
   .pop{left:0!important;right:0;top:auto!important;bottom:0;width:auto;z-index:1250}
   .pop .done{display:flex;background:var(--accent);width:100%}
   .frame .tag{font-size:13px;top:-32px}
+  .fv{margin:0 -20px}
+  .fv-pane{padding:0 20px}
+  .pager{margin:0 -20px;padding-left:20px}
+  .page{flex-basis:calc(100% - 50px)}
+  .track{gap:12px;transform:translateX(calc(var(--p,0) * (38px - 100%)))}
+  .tile{--ic:46px;--tnh:30px;--tnf:14px}
 }
 
 /* phone held sideways: compact bar/dock, page segment moves up beside the search */
@@ -165,11 +211,17 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
   #dock{gap:8px;padding:6px calc(12px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));border-radius:18px 18px 0 0}
   .frame .tag{top:6px;right:6px;font-size:12px;padding:3px 9px 2px}
   .rb{min-height:46px;flex-direction:row;gap:8px}
+  .page{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tile{aspect-ratio:auto;height:84px;--ic:34px;--tnh:16px}
   .card.open{max-height:min(85vh,calc(100vh - 64px));max-height:min(85dvh,calc(100dvh - 64px));padding:8px 20px calc(14px + env(safe-area-inset-bottom))}
   .pop{max-height:min(85dvh,calc(100dvh - 64px));overflow:auto}
 }
 
 /* labels (Leaflet divIcons) */
+.cn{font-weight:800;font-size:22px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 3px #fff}
+.hollow .cn{color:#fff;-webkit-text-stroke:1.4px var(--ink);paint-order:stroke fill;text-shadow:none}
+.on-lbl{font-weight:600;font-style:italic;font-size:15px;letter-spacing:.12em;color:var(--ink);text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 3px #fff}
+.hollow .on-lbl{color:#fff;-webkit-text-stroke:1px var(--ink);paint-order:stroke fill;text-shadow:none;font-weight:700}
 .lbl-wrap{width:0!important;height:0!important;margin:0!important;background:none;border:0;pointer-events:none}
 .lbl{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;line-height:1;pointer-events:none}
 .nm{font-weight:700;font-size:12px;letter-spacing:.02em;color:var(--ink);text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
@@ -202,8 +254,30 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 </style>
 </head>
 <body>
-<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="((s) => window.app && window.app.sync(s))({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
+<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,contNames:false,oceanNames:false,grid:false,equator:false,featPage:0,featView:'',contBadge:'7/7',cAfrica:true,cAntarctica:true,cAsia:true,cEurope:true,cNorthAmerica:true,cOceania:true,cSouthAmerica:true,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="((s) => window.app && window.app.sync(s))({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,contNames:$contNames,oceanNames:$oceanNames,grid:$grid,equator:$equator,cAfrica:$cAfrica,cAntarctica:$cAntarctica,cAsia:$cAsia,cEurope:$cEurope,cNorthAmerica:$cNorthAmerica,cOceania:$cOceania,cSouthAmerica:$cSouthAmerica,orient:$orient,tool:$tool})">
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="ic-names" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20l7-9 11 2 8 6 6 10-6 8-13 2-10-5z" fill="#fff"/><path d="M15 26h18M15 33h11" stroke-width="4"/></g></symbol>
+<symbol id="ic-capitals" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M24 5l5.6 11.4 12.4 1.8-9 8.7 2.1 12.4L24 33.4 12.9 39.3 15 26.9 6 18.2l12.4-1.8z" fill="#fff"/></g></symbol>
+<symbol id="ic-myWords" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 41l2.5-10.5L32 9l7 7-21.5 21.5z" fill="#fff"/><path d="M27.5 13.5l7 7M10.5 30.5l7 7"/><path d="M26 41h14" stroke-width="3"/></g></symbol>
+<symbol id="ic-hollow" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><text x="24" y="37" text-anchor="middle" font-family="Baloo 2, sans-serif" font-weight="800" font-size="38" fill="#fff" stroke="#1E1B18" stroke-width="2.4" paint-order="stroke fill">Aa</text></g></symbol>
+<symbol id="ic-continentNames" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22c4-9 11-12 17-9s8-4 14 0 8 9 6 17c-5 6-12 4-17 7s-12 0-17-5z" fill="#fff"/><path d="M13 26h22M16 33h12" stroke-width="3.6"/></g></symbol>
+<symbol id="ic-oceanNames" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 14q4.5-6 9 0t9 0 9 0 9 0"/><path d="M5 24q4.5-6 9 0t9 0 9 0 9 0"/><path d="M9 36h14M28 36h11" stroke-width="4"/></g></symbol>
+<symbol id="ic-continents" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16l7-8 10 2 3 9-6 8-10-2z" fill="#fff"/><path d="M27 25l9-5 7 7-3 12-10 2z" fill="#fff"/><path d="M8 40l8-2" stroke-width="2"/></g></symbol>
+<symbol id="ic-countries" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l8-9 14 2 10 8 3 14-8 9-16 1-9-8z" fill="#fff"/><path d="M15 8l4 14 12 4M19 22l-2 18M31 26l8 3" stroke-width="2.2"/></g></symbol>
+<symbol id="ic-states" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h38v24H5z" fill="#fff"/><path d="M17 12v8h10v8h9v8M27 20h16M5 28h12" stroke-width="2.2"/></g></symbol>
+<symbol id="ic-counties" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="8" width="36" height="32" rx="4" fill="#fff"/><path d="M18 8v32M30 8v32M6 19h36M6 30h36" stroke-width="2"/></g></symbol>
+<symbol id="ic-latlong" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" fill="#fff"/><path d="M7 24h34M10 15h28M10 33h28" stroke-width="2.2"/><path d="M24 7c-11 9-11 25 0 34 11-9 11-25 0-34z" stroke-width="2.2"/></g></symbol>
+<symbol id="ic-equator" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="17" fill="#fff"/><path d="M7 24h34" stroke-width="4.4"/><path d="M10 15h28M10 33h28" stroke-width="2.2" stroke-dasharray="3 4"/></g></symbol>
+<symbol id="ic-tornado" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h36M10 17h28M15 25h18M19 33h10M22 41h4" stroke-width="4.4"/></g></symbol>
+<symbol id="ic-c-africa" viewBox="0 0 48 48"><path d="M32.3 36.6L30.5 36.2L29.0 34.2L31.4 33.0L33.2 33.6L32.3 36.6zM31.8 33.0L29.8 34.3L27.2 33.2L27.2 31.6L28.3 31.6L28.3 30.4L31.4 31.8L30.7 29.5L32.0 29.0L33.5 30.2L33.3 32.1L31.8 32.9zM33.7 25.1L31.3 25.1L32.1 22.6L33.7 22.3L34.3 23.6L33.7 25.0zM21.6 6.6L20.5 8.2L19.4 6.3L19.8 4.8L21.3 4.5L20.8 6.1L21.5 6.6zM33.1 29.6L31.3 28.0L31.8 25.1L33.7 25.1L36.6 27.1L37.1 30.3L34.2 30.8L33.2 29.6zM33.7 22.3L30.5 22.1L28.4 20.0L28.9 19.0L32.2 19.3L33.3 17.9L33.8 19.9L33.2 20.3L34.4 21.6L33.8 22.2zM33.8 19.4L33.0 17.9L32.2 19.2L29.3 18.9L28.2 19.8L27.1 17.6L28.3 16.0L28.9 12.7L35.3 12.6L36.2 14.8L33.8 19.4zM31.2 36.5L32.3 36.6L32.6 38.6L32.0 39.0L33.1 39.1L32.8 40.0L30.0 42.7L26.2 43.3L25.3 43.1L24.2 40.0L26.2 39.9L26.2 37.9L27.1 39.0L27.8 38.2L29.1 38.4L31.1 36.5zM37.8 25.5L38.0 22.4L41.3 20.2L41.8 18.5L43.1 18.1L43.1 18.9L41.3 22.1L37.9 25.4zM41.8 18.5L41.3 20.2L38.4 18.8L41.8 18.5zM8.7 16.5L9.2 17.8L6.3 17.9L7.9 17.3L5.9 16.6L6.6 15.6L8.7 16.5zM22.7 17.1L23.2 18.3L21.6 20.9L18.7 22.2L16.8 21.1L17.6 17.3L22.6 17.1zM22.7 17.1L17.9 17.1L17.3 18.2L15.4 16.7L17.2 16.2L17.6 14.2L21.8 11.8L23.4 12.1L24.0 13.5L22.7 16.9zM28.0 34.1L26.7 34.4L25.7 40.2L23.6 39.3L21.7 33.9L27.8 34.1zM32.3 36.6L33.2 33.6L31.7 32.6L33.9 32.3L34.4 33.8L34.1 30.8L37.3 30.3L37.3 32.9L34.1 35.2L34.4 37.7L32.7 39.0L32.3 36.7zM14.2 5.6L14.7 7.2L9.2 10.0L7.4 12.9L6.2 13.0L12.1 5.2L14.0 5.6zM10.7 9.6L10.7 10.5L8.9 10.5L8.3 13.0L6.1 13.3L7.4 12.9L9.2 10.0L10.6 9.6zM8.7 16.5L7.5 15.5L6.4 16.0L6.2 13.0L8.3 13.0L8.9 10.5L10.7 10.5L10.7 9.8L12.7 11.0L11.8 11.0L12.4 16.2L8.8 16.6zM9.2 17.8L9.1 16.1L12.4 16.2L11.8 11.0L17.6 14.2L17.2 16.2L14.0 16.9L12.1 19.0L9.2 17.8zM33.3 32.1L33.1 29.6L33.8 29.7L34.7 33.2L34.3 33.8L33.3 32.1zM42.1 31.3L42.6 32.9L40.9 37.9L39.2 38.1L39.4 33.3L42.1 31.2zM20.5 8.2L21.6 6.6L25.7 8.2L26.7 6.8L28.8 7.3L28.3 14.0L20.9 11.3L20.4 8.2zM9.1 20.8L9.8 20.0L10.7 20.4L11.3 22.2L9.2 20.9zM33.7 25.1L34.4 21.6L35.9 22.6L38.0 22.4L37.8 25.5L36.6 27.1L33.7 25.1zM9.8 20.0L7.2 18.7L7.9 17.7L10.5 17.8L11.2 20.0L10.4 20.6L9.8 20.0zM15.3 18.5L16.0 21.2L14.2 22.0L13.8 18.6L15.2 18.5zM22.5 23.4L23.0 25.9L22.2 25.5L21.4 26.7L20.1 24.9L21.5 23.3L22.5 23.3zM34.4 21.6L33.2 20.2L35.8 16.5L37.4 16.9L39.1 19.7L41.3 20.2L39.6 21.9L36.7 22.7L34.4 21.6zM35.1 16.8L36.2 14.8L38.7 17.7L37.0 16.7L35.1 16.8zM35.3 12.6L28.9 12.7L28.7 8.2L28.9 7.4L33.8 7.6L33.8 9.5L32.8 8.5L35.3 12.6zM11.0 19.0L13.9 19.4L13.8 21.7L11.3 22.2L11.0 19.1zM32.0 29.0L30.7 29.5L31.1 31.8L30.0 30.8L27.4 30.6L27.1 28.5L24.9 28.9L24.2 27.7L22.0 27.7L24.0 26.6L25.7 21.9L30.0 21.7L31.4 22.1L32.3 23.4L30.9 25.9L32.0 28.9zM21.4 26.7L21.6 25.8L23.1 25.6L22.5 23.4L24.0 23.6L24.3 22.6L25.4 22.6L23.9 26.7L21.5 26.8zM28.3 14.0L28.3 16.0L27.1 17.6L27.7 18.6L23.7 20.5L22.6 16.8L23.7 15.4L23.4 12.1L28.1 13.9zM28.4 19.9L30.2 21.8L25.9 21.8L24.1 23.3L23.2 21.3L23.7 20.5L27.5 18.6L28.3 19.8zM20.0 22.0L21.8 20.7L23.1 17.5L24.1 23.6L20.7 23.4L20.0 22.0zM15.8 18.6L13.8 18.6L13.9 19.4L12.4 18.9L13.1 17.3L15.1 16.4L16.5 17.8L15.9 18.6zM29.0 34.2L31.2 36.5L29.1 38.4L26.6 39.1L26.7 34.4L29.0 34.2zM16.2 21.2L15.8 18.8L16.9 17.8L17.4 18.8L16.3 21.2zM28.3 30.4L28.3 31.6L27.2 31.6L28.0 34.1L21.7 33.9L22.8 30.5L22.0 27.8L24.2 27.7L24.9 28.9L27.1 28.5L27.4 30.6L28.3 30.4zM20.0 4.6L19.4 6.3L20.7 8.8L20.4 10.4L21.8 11.8L17.2 14.3L10.7 9.8L10.7 9.0L14.7 7.2L14.2 5.6L19.7 4.6z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-antarctica" viewBox="0 0 48 48"><path d="M5 34c4-7 11-9 19-9s15 2 19 9-5 7-19 7S1 41 5 34z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-asia" viewBox="0 0 48 48"><path d="M13.0 26.0L9.7 27.1L9.8 25.7L12.7 25.2L13.0 25.9zM31.3 24.3L30.5 25.2L31.8 27.3L30.3 28.6L31.2 26.4L29.4 24.0L31.3 24.3zM19.0 17.4L19.7 17.9L18.5 17.9L17.5 19.1L14.9 17.2L14.0 17.7L14.0 16.5L17.0 16.9L18.1 18.0L19.0 17.4zM14.0 17.7L14.9 17.2L17.5 18.8L16.1 19.8L14.4 18.8L13.3 19.1L12.9 18.0L13.6 17.8L12.8 17.6L14.0 17.7zM9.2 17.7L10.3 19.1L7.4 19.6L4.5 19.3L4.1 18.2L9.1 17.7zM28.7 24.7L30.5 26.3L29.6 27.6L28.7 27.0L29.0 29.6L28.1 28.7L28.5 27.6L27.8 25.3L28.7 24.7zM12.7 25.2L9.6 26.0L6.9 22.1L7.7 21.0L11.5 22.0L13.9 24.2L12.7 25.2zM20.9 19.6L18.5 22.5L19.0 23.4L15.9 23.1L16.4 22.4L15.6 21.5L17.4 21.5L19.4 19.3L20.9 19.6zM13.0 26.0L12.7 25.2L13.7 24.8L14.0 23.2L15.3 24.1L13.1 25.9zM24.6 15.1L27.8 14.9L28.3 14.1L34.1 14.8L33.9 15.5L35.3 15.9L30.3 17.6L27.5 17.3L24.6 15.1zM34.5 30.1L33.5 31.0L31.9 30.8L34.3 29.2L35.1 29.7L34.5 30.1zM29.4 24.0L31.2 26.6L30.4 26.8L30.0 25.4L29.0 25.6L29.4 24.0zM19.0 18.1L19.7 17.9L18.7 17.7L19.1 17.2L22.1 17.5L19.0 18.1zM19.0 17.4L18.1 18.0L14.9 16.3L14.0 16.5L14.0 17.7L12.8 17.6L12.1 16.7L13.0 15.9L11.5 16.0L11.2 14.7L15.6 14.6L15.7 13.5L18.3 13.0L24.2 14.9L22.0 16.5L22.1 17.4L19.0 17.4zM42.4 17.7L42.1 19.8L39.0 20.2L41.4 19.1L42.4 17.7zM9.5 19.1L10.8 19.6L11.5 21.5L8.4 20.8L9.5 19.1zM13.3 19.1L15.7 19.3L15.6 21.5L16.4 22.5L15.8 23.1L11.5 21.5L10.1 18.9L11.3 18.3L13.3 19.1zM27.5 29.8L29.9 31.4L30.7 32.6L30.2 33.5L27.4 29.7zM37.0 31.2L35.4 31.4L36.5 31.8L35.8 32.1L36.3 33.0L35.6 32.4L35.2 33.4L35.4 31.2L37.0 31.1zM31.9 30.8L33.5 31.0L34.5 30.1L35.0 31.2L33.6 32.9L32.1 32.5L31.8 30.9zM42.3 32.4L42.3 34.5L39.0 32.0L42.2 32.4zM18.1 23.5L19.0 23.4L18.5 22.5L20.4 20.8L20.0 19.9L21.3 19.7L22.9 22.3L27.8 22.1L26.3 24.2L26.2 23.2L24.8 22.6L25.0 24.3L22.1 26.3L21.2 28.8L19.7 24.2L18.9 24.6L18.1 23.6zM31.3 24.3L30.4 23.7L28.7 24.3L27.3 21.7L25.0 22.4L21.6 21.1L21.7 20.1L19.9 18.4L22.1 17.5L22.0 16.5L24.3 15.1L27.5 17.3L30.3 17.6L35.3 15.9L33.8 15.5L35.7 13.7L37.2 13.8L39.0 15.6L40.2 15.4L38.8 17.3L34.6 18.5L36.2 19.0L35.1 19.9L35.9 22.1L34.2 23.9L31.4 24.3zM28.7 24.7L27.8 25.3L28.2 28.2L27.9 26.0L26.7 26.2L26.1 24.4L27.9 22.0L28.7 24.7zM17.5 19.1L20.3 19.1L16.7 21.7L15.6 21.5L15.5 20.1L17.5 19.1z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-europe" viewBox="0 0 48 48"><path d="M10.0 25.2L8.3 25.0L10.0 24.1L9.8 23.1L8.4 23.1L8.6 22.3L8.0 22.8L8.5 20.7L10.5 21.3L9.3 22.3L12.8 24.5L12.4 25.7L8.1 26.2L10.1 25.2zM36.4 28.1L34.3 29.0L32.2 28.1L30.3 29.3L31.2 28.6L30.5 27.6L26.0 27.3L27.3 25.9L27.0 25.2L33.5 24.7L34.7 26.0L37.6 26.5L36.4 28.1zM19.1 20.4L20.1 18.9L19.5 17.7L20.9 17.1L22.2 15.0L24.7 14.0L26.6 14.5L27.3 16.1L23.0 18.2L22.9 19.4L24.0 19.9L22.2 20.7L22.1 22.2L20.1 22.8L19.0 20.4zM10.6 30.5L13.9 31.2L10.3 34.8L8.1 35.3L7.0 34.5L7.7 31.7L5.8 30.8L10.6 30.5zM26.3 26.9L23.2 27.7L22.6 27.3L23.7 26.6L26.2 26.9zM26.4 30.0L26.2 31.2L24.1 30.5L24.3 28.7L26.4 30.0zM44.0 25.5L42.0 26.6L43.5 28.7L41.9 29.8L43.1 31.5L42.3 31.9L35.4 29.4L37.1 28.2L36.4 28.0L37.6 26.5L32.2 24.9L31.9 24.3L32.8 24.0L29.4 21.4L29.8 19.9L31.2 19.8L29.7 19.5L32.1 17.9L31.1 17.4L30.5 15.4L31.1 14.9L30.1 14.1L32.4 13.4L38.2 14.8L36.7 15.9L32.3 15.2L35.9 17.3L35.5 16.5L37.4 16.9L39.0 15.6L40.2 15.9L39.7 14.2L41.3 14.3L41.9 14.7L40.7 15.0L41.7 15.4L44.0 14.0L4.0 14.0L4.0 16.5zM29.9 29.2L30.9 29.3L30.2 30.3L26.5 30.2L24.8 28.8L26.7 27.5L29.0 27.4L29.9 29.2zM6.1 31.5L7.7 31.7L7.0 34.5L5.9 34.6L6.0 31.5zM27.0 25.3L26.5 26.9L21.3 25.7L20.9 23.7L23.3 23.2L26.8 23.5L26.9 25.2zM25.0 14.0L22.6 14.7L20.8 17.2L19.6 17.5L20.1 18.9L19.3 20.5L18.6 20.0L16.6 21.1L15.3 20.7L15.9 20.1L15.1 20.3L16.3 19.5L15.1 20.0L15.0 19.1L16.6 19.0L15.0 19.0L16.1 18.6L15.1 18.4L19.1 17.4L17.9 17.4L21.5 14.7L27.7 12.7L28.4 12.8L27.9 13.3L31.1 12.9L30.3 13.3L31.7 13.7L25.1 14.0zM15.6 25.8L14.0 25.3L16.1 24.0L15.6 25.7zM28.9 27.4L30.5 27.6L31.2 28.6L29.9 29.2L29.0 27.4zM26.4 23.4L25.3 22.3L28.9 22.6L28.4 23.6L26.5 23.4zM28.9 22.6L25.3 22.3L25.8 21.4L29.5 21.4L29.9 22.3L28.9 22.6zM16.3 28.9L20.6 28.5L19.7 30.0L23.7 32.6L22.7 32.4L22.1 34.0L21.9 32.7L18.2 30.1L16.6 30.3L16.2 28.9zM7.1 23.0L6.5 23.4L7.8 23.6L7.7 24.8L5.0 25.1L6.1 24.5L5.3 24.6L6.0 24.2L5.3 23.5L7.1 22.9zM26.0 27.3L26.5 27.6L25.4 28.7L23.6 29.0L22.1 28.3L22.4 27.7L26.0 27.3zM28.7 31.6L27.2 32.7L26.3 32.4L27.3 34.1L26.3 35.0L25.4 34.1L26.7 33.9L24.6 32.9L28.6 31.6zM17.9 27.9L16.6 27.8L17.0 26.9L15.5 25.6L16.4 23.9L18.1 24.0L17.3 23.1L20.6 23.6L21.4 25.4L19.5 26.1L20.7 27.1L20.1 27.9L17.9 27.8zM16.7 27.8L15.6 28.7L16.7 30.1L16.0 30.6L11.4 30.9L10.6 30.5L11.4 29.5L10.6 28.1L8.7 27.2L10.9 27.1L10.5 26.5L12.0 26.6L13.4 25.6L17.0 26.9L16.6 27.8zM27.3 16.1L27.0 14.7L25.0 14.0L30.5 13.6L31.1 17.4L32.1 17.9L29.7 19.5L26.6 19.9L25.6 19.4L25.4 18.1L28.1 16.7L27.4 16.1zM29.4 21.4L26.9 20.5L29.8 20.1L29.4 21.4zM23.9 26.6L20.9 27.2L19.5 26.1L21.4 25.6L23.9 26.6zM20.5 29.2L23.9 28.9L24.0 29.6L21.9 29.4L23.1 30.8L20.5 29.2zM29.8 31.4L26.6 31.9L26.2 31.2L26.4 30.0L29.2 30.0L30.2 30.3L29.8 31.4zM24.1 30.4L23.1 30.8L21.9 29.4L24.2 29.6L24.2 30.4zM32.2 24.9L31.4 25.4L26.7 24.8L26.9 23.7L29.9 22.3L31.7 22.7L32.8 24.1L31.9 24.3L32.2 24.9zM17.9 28.0L22.6 27.1L22.0 28.4L17.9 28.0z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-northamerica" viewBox="0 0 48 48"><path d="M13.6 21.4L9.5 20.0L8.1 20.5L8.7 19.9L5.2 21.6L6.8 20.5L5.5 20.7L4.5 19.9L5.8 19.1L4.0 18.9L6.0 18.7L4.3 18.2L6.9 17.4L10.8 17.9L10.8 20.3L13.6 21.4zM27.6 24.1L29.0 23.5L29.6 24.2L27.0 25.7L27.4 26.5L26.0 27.4L26.0 29.2L25.3 27.9L22.5 28.0L21.9 29.0L19.6 27.5L16.9 27.3L15.2 25.7L15.0 23.3L22.5 23.0L25.2 23.7L25.6 25.0L27.6 24.1zM16.9 27.3L20.9 28.0L22.6 30.9L24.6 30.1L23.2 31.8L21.8 31.5L20.0 30.6L17.9 27.6L18.7 29.7L16.9 27.3zM38.9 14.4L43.6 14.9L41.4 15.3L41.0 15.8L41.9 16.0L40.8 16.1L41.7 16.7L39.6 17.0L41.1 17.7L39.7 17.4L40.9 17.8L36.4 18.9L35.4 20.4L33.0 18.8L33.7 18.4L32.9 18.4L33.8 18.0L32.7 17.6L33.4 17.4L28.1 15.7L38.8 14.4zM13.6 21.4L10.8 20.3L10.8 17.9L22.3 18.7L22.6 17.3L24.4 18.5L25.9 18.0L23.4 18.8L24.5 19.0L22.8 19.3L23.6 19.6L22.5 20.6L25.7 21.6L26.1 22.6L27.2 21.3L26.9 19.7L28.9 20.1L29.1 20.9L30.2 20.3L32.0 21.7L31.3 22.0L32.4 22.0L25.6 25.0L25.6 24.0L24.2 23.3L15.4 23.1L13.6 21.4zM17.5 17.1L19.6 17.0L21.0 17.9L17.9 18.2L16.9 17.8L18.3 17.7L16.4 17.4L17.5 17.1zM28.9 14.5L31.0 14.7L26.6 15.5L27.7 15.6L25.9 15.9L26.7 16.1L23.9 16.2L25.8 15.5L24.6 15.2L27.1 14.9L23.3 14.8L28.9 14.5zM29.5 24.1L29.0 23.5L27.6 24.1L30.3 23.1L29.6 23.4L31.1 24.1L29.5 24.1zM24.6 17.5L25.8 16.9L29.2 17.6L31.0 18.6L29.1 18.8L30.2 19.4L29.1 19.4L29.8 19.8L26.8 19.2L28.2 18.5L27.2 17.9L24.0 17.7L23.9 17.0L25.0 16.8L24.6 17.5z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-oceania" viewBox="0 0 48 48"><path d="M21.7 15.2L21.7 11.5L23.7 12.2L27.3 15.8L23.2 14.3L22.4 14.7L23.1 15.1L21.8 15.3zM40.1 33.6L40.7 33.9L38.7 36.2L36.3 36.3L40.0 33.5zM40.2 30.0L41.8 31.5L43.2 31.5L40.9 33.6L41.3 33.0L40.4 32.4L41.1 31.2L40.1 29.9zM23.0 16.8L24.8 20.8L28.7 24.8L28.5 28.0L26.8 31.4L24.8 32.4L23.9 31.7L22.0 31.9L20.1 29.5L19.4 30.1L19.9 28.6L18.7 30.0L17.8 28.6L16.1 28.0L7.7 30.0L6.9 29.6L7.3 28.1L5.8 25.0L6.4 25.0L6.3 22.5L10.3 21.2L13.2 18.0L15.2 18.7L15.8 17.1L17.0 16.9L16.5 16.4L19.2 16.8L18.5 18.5L21.4 20.1L22.4 16.3L22.9 16.8z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="ic-c-southamerica" viewBox="0 0 48 48"><path d="M23.1 6.6L22.8 8.7L21.5 9.5L20.4 9.1L21.2 10.2L19.5 11.1L18.6 9.9L18.8 8.0L16.1 7.4L15.8 5.3L16.6 4.7L16.4 6.3L17.3 4.5L18.4 5.5L22.0 5.3L21.4 5.4L22.7 6.1L22.2 6.6L23.0 6.5zM27.0 31.1L26.1 31.8L24.1 31.2L25.0 29.0L27.0 31.1zM26.5 8.4L26.5 9.9L25.4 10.5L24.3 8.7L24.9 8.1L26.6 8.3zM17.4 14.0L15.7 14.5L15.0 15.9L16.1 17.3L17.0 17.0L18.1 18.8L17.4 22.0L13.9 20.0L10.8 14.0L11.3 13.5L12.1 14.4L14.3 11.6L15.6 12.9L17.3 13.1L17.3 13.9zM24.2 23.2L24.3 24.4L26.5 25.5L25.7 27.4L23.9 27.4L24.5 26.2L21.6 24.4L22.1 22.9L24.2 23.1zM22.7 8.5L23.1 6.6L24.7 8.0L24.3 9.2L25.2 10.4L23.8 10.8L22.8 8.5zM14.3 11.6L12.0 14.4L11.3 14.1L11.6 12.7L11.0 12.8L11.5 11.1L14.2 11.6zM16.6 4.7L15.4 6.2L16.2 7.5L18.8 8.0L19.1 10.7L17.4 10.5L17.4 14.0L17.3 13.1L15.6 12.9L12.1 10.6L13.2 9.3L13.0 6.5L14.5 5.1L16.6 4.6zM17.1 22.2L17.9 22.0L19.1 24.9L17.0 29.6L17.4 31.4L16.1 36.2L16.7 37.4L15.3 40.3L16.2 41.7L18.2 41.9L16.6 42.8L15.9 42.5L16.6 42.2L15.6 42.4L16.5 42.0L15.0 42.1L15.9 41.8L14.4 40.9L15.1 41.1L14.7 39.4L15.4 39.4L14.0 38.6L15.0 37.9L15.1 38.5L15.8 37.4L15.2 33.2L16.5 30.5L17.1 22.2zM19.1 10.8L21.1 10.3L20.4 9.1L21.5 9.5L22.8 8.5L23.8 10.8L27.2 10.3L28.1 9.0L29.0 10.9L27.4 12.4L28.4 12.1L29.1 13.1L30.5 11.9L32.0 12.5L32.0 13.4L34.7 13.2L37.5 14.8L37.6 16.4L35.4 19.0L34.1 24.3L29.7 26.2L29.6 28.1L27.0 31.1L26.7 30.1L24.5 29.0L26.8 26.8L25.6 24.5L24.3 24.4L24.1 21.0L23.0 21.0L22.8 19.5L20.2 18.5L20.0 17.2L17.0 17.9L17.0 17.0L16.1 17.3L15.0 15.9L15.7 14.5L17.3 14.0L17.4 10.5L19.0 10.9zM17.6 21.7L17.6 17.9L20.0 17.2L20.2 18.5L22.8 19.5L23.0 21.0L24.1 21.0L24.6 22.1L24.2 23.2L22.1 22.9L21.6 24.4L18.7 24.8L17.6 21.8zM24.5 29.0L24.0 31.4L25.0 33.0L24.2 33.8L21.8 34.0L21.7 35.2L20.2 35.2L21.0 36.3L18.7 38.2L19.8 39.3L17.9 40.5L18.3 41.9L16.2 41.7L15.3 40.3L16.7 37.4L16.1 36.2L17.4 31.4L17.0 29.7L19.1 24.6L21.5 24.3L24.5 26.2L23.9 27.4L25.6 27.4L26.7 26.4L26.7 27.3L24.5 29.0z" fill="#fff" stroke="#1E1B18" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+</defs></svg>
 <header>
   <div class="brand">
     <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="11" fill="#FFC93C" stroke="#1E1B18" stroke-width="2"/><path d="M9 13l7-3 8 3 7-3v17l-7 3-8-3-7 3z" fill="#fff" stroke="#1E1B18" stroke-width="2" stroke-linejoin="round"/><path d="M16 10v17M24 13v17" stroke="#1E1B18" stroke-width="2"/></svg>
@@ -254,27 +328,39 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     </label>
   </section>
 
-  <section class="card" aria-labelledby="h-labels" data-class:open="$panel == 'labels'">
+  <section class="card" aria-labelledby="h-features" data-class:open="$panel == 'features'">
     <span class="grab"></span>
-    <div class="card-head"><h2 id="h-labels">Labels</h2><button data-fast class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
-      <button data-fast class="chip" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>
-        Names</button>
-      <button data-fast class="chip" data-attr:aria-pressed="($capitals) ? 'true' : 'false'" data-on:click="$capitals = !$capitals">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1-4.5-4.2 6.1-.8z"/></svg>
-        Capitals</button>
-      <button data-fast class="chip" data-attr:aria-pressed="($tornado) ? 'true' : 'false'" data-on:click="$tornado = !$tornado">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18M5 9h13M8 13h9M10 17h5M12 21h1"/></svg>
-        Tornadoes</button>
-      <button data-fast class="chip" data-attr:aria-pressed="($mine) ? 'true' : 'false'" data-on:click="$mine = !$mine">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
-        My words</button>
-    </div>
-    <div style="height:6px"></div>
-    <div class="seg" role="group" aria-label="Letters">
-      <button data-fast data-attr:aria-pressed="(!$hollow) ? 'true' : 'false'" data-on:click="$hollow = false"><span style="font-size:22px;font-weight:800">Aa</span> Solid</button>
-      <button data-fast data-attr:aria-pressed="($hollow) ? 'true' : 'false'" data-on:click="$hollow = true"><span style="font-size:22px;font-weight:800;color:#fff;-webkit-text-stroke:1.4px #1E1B18;paint-order:stroke fill">Aa</span> Hollow</button>
+    <div class="card-head"><h2 id="h-features">Features</h2><button data-fast class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="fv" data-class:sub="$featView != ''">
+      <div class="fv-pane fv-root" data-attr:inert="$featView != ''">
+        <div class="fp-nav pills" role="group" aria-label="Pages">
+          <button data-fast class="pill" data-attr:aria-pressed="($featPage == 0) ? 'true' : 'false'" data-on:click="$featPage = 0">Words</button>
+          <button data-fast class="pill" data-attr:aria-pressed="($featPage == 1) ? 'true' : 'false'" data-on:click="$featPage = 1">Map</button>
+        </div>
+        <div class="fp-arrows">
+          <button data-fast class="btn arw" aria-label="Previous page" data-attr:disabled="$featPage == 0" data-on:click="$featPage = 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <span data-text="($featPage == 0) ? 'Words' : 'Map'">Words</span>
+          <button data-fast class="btn arw" aria-label="Next page" data-attr:disabled="$featPage == 1" data-on:click="$featPage = 1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="pager" id="featPager">
+          <div class="track" data-style:--p="$featPage">
+            <div class="page" role="group" aria-label="Words">
+              <button class="tile" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-names"/></svg><span class="tn">Names</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$names" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($capitals) ? 'true' : 'false'" data-on:click="$capitals = !$capitals"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-capitals"/></svg><span class="tn">Capitals</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$capitals" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($mine) ? 'true' : 'false'" data-on:click="$mine = !$mine"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-myWords"/></svg><span class="tn">My words</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$mine" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($hollow) ? 'true' : 'false'" data-on:click="$hollow = !$hollow"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-hollow"/></svg><span class="tn">Hollow letters</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$hollow" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($tornado) ? 'true' : 'false'" data-on:click="$tornado = !$tornado"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-tornado"/></svg><span class="tn">Tornadoes</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$tornado" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($contNames) ? 'true' : 'false'" data-on:click="$contNames = !$contNames"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-continentNames"/></svg><span class="tn">Continent names</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$contNames" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($oceanNames) ? 'true' : 'false'" data-on:click="$oceanNames = !$oceanNames"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-oceanNames"/></svg><span class="tn">Ocean names</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$oceanNames" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="page" role="group" aria-label="Map">
+              <button class="tile" data-attr:aria-pressed="($showCountries) ? 'true' : 'false'" data-on:click="$showCountries = !$showCountries"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-countries"/></svg><span class="tn">Countries</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$showCountries" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($showStates) ? 'true' : 'false'" data-on:click="$showStates = !$showStates"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-states"/></svg><span class="tn">States</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$showStates" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($showCounties) ? 'true' : 'false'" data-on:click="$showCounties = !$showCounties"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-counties"/></svg><span class="tn">Counties</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$showCounties" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($grid) ? 'true' : 'false'" data-on:click="$grid = !$grid"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-latlong"/></svg><span class="tn">Lat/long grid</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$grid" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-attr:aria-pressed="($equator) ? 'true' : 'false'" data-on:click="$equator = !$equator"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-equator"/></svg><span class="tn">Equator</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$equator" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" aria-haspopup="true" data-on:click="$featView = 'continents'"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-continents"/></svg><span class="tn">Continents</span><span class="cnt"><span data-text="$contBadge">6/7</span><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+            </div>
+          </div>
+        </div>
+        <div class="dots" role="group" aria-label="Page dots">
+          <button data-fast class="dotb" aria-label="Words" data-attr:aria-pressed="($featPage == 0) ? 'true' : 'false'" data-on:click="$featPage = 0"><i></i></button>
+          <button data-fast class="dotb" aria-label="Map" data-attr:aria-pressed="($featPage == 1) ? 'true' : 'false'" data-on:click="$featPage = 1"><i></i></button>
+        </div>
+      </div>
+      <div class="fv-pane fv-sub" data-view="continents" data-class:on="$featView == 'continents'" data-attr:inert="$featView != 'continents'">
+        <div class="sub-head"><button data-fast class="btn arw" aria-label="Back" data-on:click="$featView = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span>Continents</span></div>
+        <div class="page" role="group" aria-label="Continents"><button class="tile" data-fast data-attr:aria-pressed="($cAfrica) ? 'true' : 'false'" data-on:click="window.app.toggleCont('Africa')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-africa"/></svg><span class="tn">Africa</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cAfrica" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cAntarctica) ? 'true' : 'false'" data-on:click="window.app.toggleCont('Antarctica')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-antarctica"/></svg><span class="tn">Antarctica</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cAntarctica" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cAsia) ? 'true' : 'false'" data-on:click="window.app.toggleCont('Asia')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-asia"/></svg><span class="tn">Asia</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cAsia" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cEurope) ? 'true' : 'false'" data-on:click="window.app.toggleCont('Europe')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-europe"/></svg><span class="tn">Europe</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cEurope" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cNorthAmerica) ? 'true' : 'false'" data-on:click="window.app.toggleCont('North America')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-northamerica"/></svg><span class="tn">North America</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cNorthAmerica" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cOceania) ? 'true' : 'false'" data-on:click="window.app.toggleCont('Oceania')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-oceania"/></svg><span class="tn">Oceania</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cOceania" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="tile" data-fast data-attr:aria-pressed="($cSouthAmerica) ? 'true' : 'false'" data-on:click="window.app.toggleCont('South America')"><svg class="ic" viewBox="0 0 48 48" aria-hidden="true"><use href="#ic-c-southamerica"/></svg><span class="tn">South America</span><svg class="ck" viewBox="0 0 22 22" aria-hidden="true" data-show="$cSouthAmerica" style="display:none"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+      </div>
     </div>
   </section>
  </div>
@@ -311,7 +397,7 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     <button data-fast class="rb rb-move" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>Move</button>
     <button data-fast class="rb rb-words" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = ($tool == 'text') ? 'move' : 'text'; $panel = ''; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Words</button>
     <button data-fast class="rb rb-lines" data-attr:aria-pressed="($panel == 'lines') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'lines') ? '' : 'lines'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6c3-2 6 2 9 0s6-2 9 0M3 12c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/></svg>Lines</button>
-    <button data-fast class="rb rb-labels" data-attr:aria-pressed="($panel == 'labels') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'labels') ? '' : 'labels'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>Labels</button>
+    <button data-fast class="rb rb-features" data-attr:aria-pressed="($panel == 'features') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'features') ? '' : 'features'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2" fill="#FFC93C"/></svg>Features</button>
     <button class="rb rb-print js-print" data-on:click="window.app.print()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z" fill="#fff"/></svg><span class="js-printlbl" data-busy="Making…">Print</span></button>
   </nav>
 
@@ -344,8 +430,9 @@ import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
-const MAX_BOUNDS = [[-80, -200], [85, 200]];
+const MAX_BOUNDS = [[-86, -200], [85, 200]];
 const WORLD_BOUNDS = L.latLngBounds([-56, -190], [78, 192]);
+const FULL_BOUNDS = L.latLngBounds([-84, -190], [83, 192]);
 /* Keep Russia and Alaska whole across the 180° line: Chukotka moves east of 180, the western Aleutians west of -180. */
 const fixPt = (p) => (p[0] < -169 && p[1] > 64.5) ? [p[0] + 360, p[1]] : (p[0] > 170 && p[1] > 50 && p[1] < 56) ? [p[0] - 360, p[1]] : p;
 const fixCoords = (c) => typeof c[0] === 'number' ? fixPt(c) : c.map(fixCoords);
@@ -358,7 +445,7 @@ const clean = (g) => {
     let cur = [];
     for (const raw of ln) {
       const pt = fixPt(raw), last = cur[cur.length - 1];
-      if (last && (Math.abs(pt[0] - last[0]) > 180 || (Math.abs(Math.abs(pt[0]) - 180) < 0.01 && Math.abs(Math.abs(last[0]) - 180) < 0.01))) { if (cur.length > 1) out.push(cur); cur = []; }
+      if (last && (Math.abs(pt[0] - last[0]) > 180 || (Math.abs(Math.abs(pt[0]) - 180) < 0.01 && Math.abs(Math.abs(last[0]) - 180) < 0.01) || (pt[1] < -89.9 && last[1] < -89.9))) { if (cur.length > 1) out.push(cur); cur = []; }
       cur.push(pt);
     }
     if (cur.length > 1) out.push(cur);
@@ -366,6 +453,14 @@ const clean = (g) => {
   return { type: 'MultiLineString', coordinates: out };
 };
 const STATE_Z = 4;
+const CONTS = [['Africa', 'cAfrica'], ['Antarctica', 'cAntarctica'], ['Asia', 'cAsia'], ['Europe', 'cEurope'], ['North America', 'cNorthAmerica'], ['Oceania', 'cOceania'], ['South America', 'cSouthAmerica']];
+const NA = 'North America';
+/* rough extents (lat/lng) per continent, used to fit the view to whatever is switched on */
+const CONT_BOUNDS = { Africa: [[-35, -18], [38, 52]], Antarctica: [[-85, -180], [-62, 180]], Asia: [[-11, 26], [56, 146]], Europe: [[35, -25], [78, 192]], 'North America': [[7, -170], [84, -10]], Oceania: [[-48, 110], [0, 192]], 'South America': [[-56, -82], [13, -34]] };
+/* fixed spots for the big continent names and the ocean names */
+const CONT_LABELS = [['Africa', 5, 21], ['Antarctica', -80, 0], ['Asia', 46, 95], ['Europe', 56, 24], ['North America', 47, -102], ['Oceania', -25, 134], ['South America', -13, -60]];
+const OCEAN_LABELS = [['North Pacific', 28, -150], ['South Pacific', -30, -125], ['North Atlantic', 32, -42], ['South Atlantic', -22, -18], ['Indian Ocean', -18, 80], ['Southern Ocean', -62, 40], ['Arctic Ocean', 80, 75]];
+const PROV_CONT = { A: 'Asia', E: 'Europe', F: 'Africa', N: NA, O: 'Oceania', S: 'South America', T: 'Antarctica' };
 const FIT = {
   'France': [[41.2, -5.5], [51.2, 9.8]], 'Spain': [[35.9, -9.5], [43.9, 4.5]], 'Portugal': [[36.8, -9.6], [42.2, -6.1]],
   'Norway': [[57.9, 4.5], [71.3, 31.5]], 'Netherlands': [[50.7, 3.2], [53.6, 7.3]], 'Denmark': [[54.5, 8], [57.8, 15.2]],
@@ -403,7 +498,7 @@ const map = await mapReady;
 const app = window.app = {
   map, s: null, data: {}, placeLayers: {}, labelMarkers: {}, capMarkers: [], places: [], words: {}, freeTags: [],
   selected: null, countyLayer: null, countiesLoading: false, frameRect: null, printing: false, saved: null,
-  layers: {},
+  layers: {}, fills: [], vis: new Set(CONTS.map((c) => c[0])), contMarkers: [], oceanMarkers: [],
 
   /* ---------- layout / frame ---------- */
   effOrient() {
@@ -444,9 +539,24 @@ const app = window.app = {
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
-    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
+    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(FULL_BOUNDS, false, pad0) - 0.35));
     this.updateMaxBounds();
-    if (refit) this.fitTo(WORLD_BOUNDS, false); else this.clampToFrame();
+    if (refit) this.fitTo(this.visBounds(), false); else this.clampToFrame();
+  },
+  /* what the view should fit: the usual world frame when all the main continents are on, else the union of the visible ones */
+  visBounds() {
+    const on = CONTS.map((c) => c[0]).filter((n) => this.vis.has(n));
+    if (on.length === 7) return FULL_BOUNDS;
+    if (on.length === 6 && !this.vis.has('Antarctica')) return WORLD_BOUNDS;
+    const b = L.latLngBounds([]);
+    for (const n of on) b.extend(CONT_BOUNDS[n]);
+    return b.isValid() ? b : WORLD_BOUNDS;
+  },
+  toggleCont(name) {
+    const k = CONTS.find((c) => c[0] === name)[1];
+    const n = CONTS.filter((c) => root[c[1]]).length;
+    if (root[k] && n <= 1) return; /* at least one continent stays on */
+    patch({ [k]: !root[k] });
   },
   frameBounds() {
     const f = this.frameRect;
@@ -487,25 +597,55 @@ const app = window.app = {
     el.classList.toggle('tool-text', s.tool === 'text');
     el.classList.toggle('tool-move', s.tool === 'move');
     const L_ = this.layers;
+    /* which continents are on */
+    const vis = new Set(CONTS.filter((c) => s[c[1]]).map((c) => c[0]));
+    const ck = [...vis].join('|');
+    const contChanged = ck !== this._ck;
+    this._ck = ck; this.vis = vis;
+    const na = vis.has(NA);
+    const badge = vis.size === 7 ? '7' : vis.size + '/7';
+    if (root.contBadge !== badge) patch({ contBadge: badge });
+    if (contChanged) { this._cands = null; if (L_.states) this.applyConts(); }
     if (L_.states) {
       s.showCountries ? L_.borders.addTo(map) : L_.borders.remove();
       L_.borders.setStyle({ weight: s.wCountry });
-      for (const k of ['stateMesh', 'provinces']) { s.showStates ? L_[k].addTo(map) : L_[k].remove(); L_[k].setStyle({ weight: s.wState }); }
+      na && s.showStates ? L_.stateMesh.addTo(map) : L_.stateMesh.remove();
+      s.showStates ? L_.provinces.addTo(map) : L_.provinces.remove();
+      na ? L_.states.addTo(map) : L_.states.remove();
+      na ? L_.nation.addTo(map) : L_.nation.remove();
+      for (const k of ['stateMesh', 'provinces']) L_[k].setStyle({ weight: s.wState });
       L_.nation.setStyle({ weight: s.wNation });
       L_.coast.setStyle({ weight: s.wNation });
+      s.grid ? L_.grid.addTo(map) : L_.grid.remove();
+      s.equator ? L_.equator.addTo(map) : L_.equator.remove();
     }
-    if (s.showCounties && !this.countyLayer && !this.countiesLoading) this.loadCounties();
+    if (s.showCounties && na && !this.countyLayer && !this.countiesLoading) this.loadCounties();
     if (this.countyLayer) {
-      s.showCounties ? this.countyLayer.addTo(map) : this.countyLayer.remove();
+      s.showCounties && na ? this.countyLayer.addTo(map) : this.countyLayer.remove();
       this.countyLayer.setStyle({ weight: s.wCounty });
     }
     if (L_.states) {
-      if (this.countyLayer && s.showCounties) this.countyLayer.bringToBack();
-      L_.states.bringToBack(); L_.countries.bringToBack();
+      const back = (l) => map.hasLayer(l) && l.bringToBack();
+      back(L_.grid); back(L_.equator);
+      if (this.countyLayer && s.showCounties) back(this.countyLayer);
+      back(L_.states); back(L_.countries);
       for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
     }
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
+    else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds()); }
     this.renderLabels();
+  },
+  /* show/hide everything that belongs to a continent that was switched off or on */
+  applyConts() {
+    const L_ = this.layers, vis = this.vis, v = (c) => vis.has(c);
+    this.closePop();
+    for (const f of this.fills) v(f.cont) ? L_.countries.addLayer(f.lyr) : L_.countries.removeLayer(f.lyr);
+    const { world, wc, gcont, prov } = this.topo, vc = (o) => v(gcont.get(o)), notUS = (o) => o.id !== '840';
+    L_.borders.clearLayers().addData(clean(topojson.mesh(world, wc, (a, b) => a !== b && notUS(a) && notUS(b) && vc(a) && vc(b))));
+    /* coastline: arcs with exactly one included side (the other side is sea or a hidden continent) */
+    L_.coast.clearLayers().addData(clean(topojson.mesh(world, wc, (a, b) => notUS(a) && notUS(b) && (a === b ? vc(a) : vc(a) !== vc(b)))));
+    const pg = prov.objects.provinces.geometries.filter((g, i) => v(PROV_CONT[prov.letters[i]]));
+    L_.provinces.clearLayers().addData(clean(topojson.mesh(prov, { type: 'GeometryCollection', geometries: pg })));
   },
   async loadCounties() {
     this.countiesLoading = true;
@@ -538,9 +678,10 @@ const app = window.app = {
     const s = this.s; if (!s || !this.data.labels) return;
     const z = map.getZoom();
     const stateZ = z >= STATE_Z;
+    const vis = this.vis, na = vis.has(NA);
     for (const l of this.data.labels) {
       const m = this.labelMarkers[l.name]; if (!m) continue;
-      this.setLbl(m, this.labelHtml(l.name, s.names && stateZ ? (l.short || l.name) : '', l.tornadoes));
+      this.setLbl(m, na ? this.labelHtml(l.name, s.names && stateZ ? (l.short || l.name) : '', l.tornadoes) : '');
     }
     /* greedy collision pass: state names first, then countries by importance; drop names that would overlap */
     const placed = [];
@@ -550,10 +691,15 @@ const app = window.app = {
       return { x1: pt.x - w / 2, x2: pt.x + w / 2, y1: pt.y - h / 2, y2: pt.y + h / 2 };
     };
     const hit = (b) => placed.some((p) => b.x1 < p.x2 && b.x2 > p.x1 && b.y1 < p.y2 && b.y2 > p.y1);
-    if (s.names && stateZ) for (const l of this.data.labels) placed.push(box(map.latLngToContainerPoint([l.lat, l.lng]), l.short || l.name, l.name));
-    for (const c of this.places) c._w = this.words[c.key] && s.mine;
-    for (const c of this.places.filter((c) => c._w)) placed.push(box(map.latLngToContainerPoint([c.lat, c.lng]), '', c.key));
-    const order = [...this.places].sort((a, b) => (a.rank - b.rank) || (a.minLabel - b.minLabel));
+    if (s.names && stateZ && na) for (const l of this.data.labels) placed.push(box(map.latLngToContainerPoint([l.lat, l.lng]), l.short || l.name, l.name));
+    /* fixed continent / ocean names: shown while zoomed out; country names step aside for them */
+    for (const c of this.contMarkers) { const on = s.contNames && vis.has(c.cont) && z <= 5; on ? c.m.addTo(map) : c.m.remove(); if (on) placed.push(box(map.latLngToContainerPoint([c.lat, c.lng]), c.text + '     ', '')); }
+    for (const c of this.oceanMarkers) { const on = s.oceanNames && z <= 5; on ? c.m.addTo(map) : c.m.remove(); }
+    const shown = this.places.filter((c) => vis.has(c.cont));
+    for (const c of this.places) if (!vis.has(c.cont)) this.setLbl(c.marker, '');
+    for (const c of shown) c._w = this.words[c.key] && s.mine;
+    for (const c of shown.filter((c) => c._w)) placed.push(box(map.latLngToContainerPoint([c.lat, c.lng]), '', c.key));
+    const order = [...shown].sort((a, b) => (a.rank - b.rank) || (a.minLabel - b.minLabel));
     for (const c of order) {
       let t = '';
       if (s.names && !(c.a3 === 'USA' && stateZ)) {
@@ -566,7 +712,7 @@ const app = window.app = {
       this.setLbl(c.marker, this.labelHtml(c.key, t, null));
     }
     for (const c of this.capMarkers) {
-      if (s.capitals && z >= c.minZoom) c.m.addTo(map); else c.m.remove();
+      if (s.capitals && z >= c.minZoom && vis.has(c.cont)) c.m.addTo(map); else c.m.remove();
     }
   },
   setWords(key, v) { this.words[key] = v; this.renderLabels(); },
@@ -632,14 +778,15 @@ const app = window.app = {
   },
   candidates() {
     if (this._cands) return this._cands;
-    const c = [{ name: 'World', b: WORLD_BOUNDS }, { name: 'United States', b: US_BOUNDS }];
-    const cs = [...this.places].filter((p) => p.a3 !== 'USA').sort((a, b) => (a.rank - b.rank) || a.display.localeCompare(b.display));
+    const c = [{ name: 'World', b: this.visBounds() }];
+    if (this.vis.has(NA)) c.push({ name: 'United States', b: US_BOUNDS });
+    const cs = [...this.places].filter((p) => p.a3 !== 'USA' && this.vis.has(p.cont)).sort((a, b) => (a.rank - b.rank) || a.display.localeCompare(b.display));
     for (const p of cs) {
       if (!p.feature) continue;
       const fo = FIT[p.fname];
       c.push({ name: p.display, alt: p.fname, b: fo ? L.latLngBounds(fo) : this.boundsOf(p.feature.geometry, FIT_OPTS[p.fname]) });
     }
-    for (const f of this.data.features || []) c.push({ name: f.properties.name, b: this.boundsOf(f.geometry, f.properties.name === 'Alaska' ? { maxLng: 0 } : {}) });
+    for (const f of this.vis.has(NA) ? this.data.features || [] : []) c.push({ name: f.properties.name, b: this.boundsOf(f.geometry, f.properties.name === 'Alaska' ? { maxLng: 0 } : {}) });
     return (this._cands = c);
   },
   search(q) {
@@ -761,6 +908,21 @@ const app = window.app = {
   }
 };
 
+/* Features pager: swipe left/right (40px) to change page; a swipe never also presses the tile under the finger */
+{
+  const pager = document.getElementById('featPager');
+  let sx = null, sy = 0, swallow = false;
+  const go = (d) => patch({ featPage: Math.max(0, Math.min(1, root.featPage + d)) });
+  pager.addEventListener('pointerdown', (e) => { if (e.isPrimary) { sx = e.clientX; sy = e.clientY; } });
+  pager.addEventListener('pointercancel', () => { sx = null; });
+  pager.addEventListener('pointerup', (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { go(dx < 0 ? 1 : -1); swallow = true; setTimeout(() => { swallow = false; }, 400); }
+  });
+  pager.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
 /* html2canvas + jsPDF are only needed for PDF export: load on demand (warmed on first hover/press of a Print button) */
 const libs = {};
 const loadScript = (src) => libs[src] || (libs[src] = new Promise((res, rej) => {
@@ -824,8 +986,8 @@ map.on('click', (e) => {
 /* ---------- load data ---------- */
 (async () => {
   try {
-    const [states, labels, caps, torn, world, wlabels, wcaps, prov] = await Promise.all(
-      ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-50m', 'world-labels', 'world-capitals', 'world-provinces-50m'].map((n) => fetch(`data/${n}.json`).then((r) => r.json())));
+    const [states, labels, caps, torn, world, wlabels, wcaps, prov, cont] = await Promise.all(
+      ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-50m', 'world-labels', 'world-capitals', 'world-provinces-50m', 'continents'].map((n) => fetch(`data/${n}.json`).then((r) => r.json())));
     // Keep the 50 states + DC; drop territories (PR, GU, VI, AS, MP: FIPS >= 60).
     states.objects.states.geometries = states.objects.states.geometries.filter((g) => +g.id < 60);
     states.objects.nation = states.objects.states;
@@ -833,20 +995,24 @@ map.on('click', (e) => {
     app.data.features = feats.features;
     app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
 
-    // world: drop Antarctica
+    // world: every country is tagged with a continent (data/continents.json); all continents start switched on
     const wc = world.objects.countries;
-    wc.geometries = wc.geometries.filter((g) => g.id !== '010');
+    const contOf = (o) => (o.id ? cont.ids[o.id] : cont.names[o.properties.name]) || null;
+    const gcont = new Map(wc.geometries.map((g) => [g, contOf(g)]));
+    prov.letters = cont.provinces;
+    app.topo = { world, wc, gcont, prov };
     const wfeats = fixFeatures(topojson.feature(world, wc));
     const NAME_FIX = { 'N. Cyprus': 'Turkish Republic of Northern Cyprus' };
     const byIso = {}, byName = {};
     wfeats.features.forEach((f) => { if (f.id) byIso[f.id] = f; else byName[NAME_FIX[f.properties.name] || f.properties.name] = f; });
     for (const l of wlabels.labels) {
       if (l.iso === '010' || l.a3 === 'ATA') continue;
+      const lc = (l.iso && cont.ids[l.iso]) || cont.names[l.name] || null;
       const f = (l.iso && byIso[l.iso]) || byName[l.name] || null;
       let display = l.name;
       if (/^People's Republic of China/.test(display)) display = 'China';
       if (display === 'United States of America') display = 'United States';
-      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, feature: f, fname: f ? f.properties.name : null });
+      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, feature: f, fname: f ? f.properties.name : null, cont: f ? contOf(f) || lc : lc });
     }
     const list = document.getElementById('places');
     const seen = new Set();
@@ -859,6 +1025,7 @@ map.on('click', (e) => {
     app.layers.countries = L.geoJSON({ type: 'FeatureCollection', features: wfeats.features.filter((f) => f.id !== '840') }, {
       style: fillStyle,
       onEachFeature: (f, lyr) => {
+        app.fills.push({ lyr, cont: contOf(f) });
         const p = placeOf.get(f); if (!p) return;
         app.placeLayers[p.key] = lyr;
         lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(p.key, p.display, e.containerPoint); });
@@ -871,26 +1038,42 @@ map.on('click', (e) => {
         lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(f.properties.name, f.properties.name, e.containerPoint); });
       }
     }).addTo(map);
-    const notUS = (g) => g.id !== '840';
-    const mk = (mesh, w) => L.geoJSON(clean(mesh), { style: { ...base, weight: w }, interactive: false }).addTo(map);
-    app.layers.borders = mk(topojson.mesh(world, wc, (a, b) => a !== b && notUS(a) && notUS(b)), 1.25);
-    app.layers.coast = mk(topojson.mesh(world, wc, (a, b) => a === b && notUS(a)), 2);
-    app.layers.provinces = mk(topojson.mesh(prov, prov.objects.provinces), 1.25);
-    app.layers.stateMesh = mk(topojson.mesh(states, states.objects.states, (a, b) => a !== b), 1.25);
-    app.layers.nation = mk(topojson.mesh(states, states.objects.nation, (a, b) => a === b), 2);
+    const mk = (w, mesh) => L.geoJSON(mesh ? clean(mesh) : null, { style: { ...base, weight: w }, interactive: false }).addTo(map);
+    app.layers.borders = mk(1.25);
+    app.layers.coast = mk(2);
+    app.layers.provinces = mk(1.25);
+    app.layers.stateMesh = mk(1.25, topojson.mesh(states, states.objects.states, (a, b) => a !== b));
+    app.layers.nation = mk(2, topojson.mesh(states, states.objects.nation, (a, b) => a === b));
+    /* lat/long grid every 30 degrees, and the equator + tropics: thin dashed lines */
+    const dash = { color: INK, interactive: false, lineJoin: 'round' };
+    const grid = [];
+    for (let la = -60; la <= 60; la += 30) grid.push([[la, -200], [la, 200]]);
+    for (let lo = -180; lo <= 180; lo += 30) grid.push([[-85, lo], [85, lo]]);
+    app.layers.grid = L.polyline(grid, { ...dash, weight: 0.9, dashArray: '2 6', opacity: 0.8 });
+    app.layers.equator = L.polyline([[[0, -200], [0, 200]], [[23.4365, -200], [23.4365, 200]], [[-23.4365, -200], [-23.4365, 200]]], { ...dash, weight: 1.75, dashArray: '9 7' });
 
     const mkLbl = (lat, lng) => L.marker([lat, lng], { icon: L.divIcon({ className: 'lbl-wrap', html: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     for (const l of app.data.labels) app.labelMarkers[l.name] = mkLbl(l.lat, l.lng);
+    const fixed = (cls, text) => L.divIcon({ className: 'lbl-wrap', html: `<div class="lbl"><span class="${cls}">${esc(text)}</span></div>`, iconSize: [0, 0] });
+    const mkFixed = (cls, text, lat, lng) => L.marker([lat, lng], { icon: fixed(cls, text), interactive: false, keyboard: false, zIndexOffset: -50 });
+    for (const [text, lat, lng] of CONT_LABELS) app.contMarkers.push({ cont: text, text, lat, lng, m: mkFixed('cn', text, lat, lng) });
+    for (const [text, lat, lng] of OCEAN_LABELS) app.oceanMarkers.push({ text, lat, lng, m: mkFixed('on-lbl', text, lat, lng) });
     for (const p of app.places) p.marker = mkLbl(p.lat, p.lng);
+    const contByA3 = Object.fromEntries(app.places.filter((p) => p.a3).map((p) => [p.a3, p.cont]));
+    const contByName = Object.fromEntries(app.places.map((p) => [p.display, p.cont]));
     const star = (c, minZoom) => app.capMarkers.push({ minZoom, m: L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'lbl-wrap', html: STAR, iconSize: [0, 0] }), interactive: false, keyboard: false, zIndexOffset: -100 }) });
     for (const c of caps) star(c, STATE_Z);
     for (const c of wcaps) star(c, c.minZoom);
+    for (const c of app.capMarkers) c.cont = NA;
+    wcaps.forEach((c, i) => { app.capMarkers[caps.length + i].cont = contByA3[c.a3] || contByName[c.country] || null; });
+    app.capMarkers.forEach((c) => { if (!c.cont) console.warn('capital without continent', c); });
+    app.applyConts();
     if (app.s) app.sync(app.s);
   } catch (e) { console.error('data load failed', e); }
 })();
 
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
-app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','orient','tool'].map((k) => [k, root[k]])));
+app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool'].map((k) => [k, root[k]])));
 
 /* initial frame + fit */
 app.layoutFrame(true);
