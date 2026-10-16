@@ -31,6 +31,31 @@ const clean = (g) => {
   }
   return { type: 'MultiLineString', coordinates: out };
 };
+/* Equal Earth (Šavrič, Patterson, Jenny 2018): an equal-area world projection with curved sides, offered as the "Round world" toggle.
+   Same units and pixel scale as Leaflet's Web Mercator, so zoom levels feel alike. Leaflet has no curved CRS of its own: a CRS is just
+   project/unproject, so this one is written out here (the inverse solves for the parametric latitude with a few Newton steps). */
+const EE = (() => {
+  const R = 6378137, A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796, M = Math.sqrt(3) / 2, D = Math.PI / 180;
+  const yOf = (t) => { const l2 = t * t, l6 = l2 * l2 * l2; return t * (A1 + A2 * l2 + l6 * (A3 + A4 * l2)); };
+  const dOf = (t) => { const l2 = t * t, l6 = l2 * l2 * l2; return A1 + 3 * A2 * l2 + l6 * (7 * A3 + 9 * A4 * l2); };
+  const TMAX = Math.asin(M), YMAX = yOf(TMAX);
+  const projection = {
+    project(ll) {
+      const t = Math.asin(M * Math.sin(Math.max(-90, Math.min(90, ll.lat)) * D));
+      return L.point(R * ll.lng * D * Math.cos(t) / (M * dOf(t)), R * yOf(t));
+    },
+    unproject(p) {
+      const y = p.y / R;
+      let t = Math.max(-TMAX, Math.min(TMAX, y));
+      if (Math.abs(y) >= YMAX) t = Math.sign(y) * TMAX;
+      else for (let i = 0; i < 12; i++) { const d = (yOf(t) - y) / dOf(t); t -= d; if (Math.abs(d) < 1e-12) break; }
+      return L.latLng(Math.asin(Math.sin(t) / M) / D, p.x / R * M * dOf(t) / Math.cos(t) / D);
+    },
+    bounds: L.bounds([-2.7064 * R, -YMAX * R], [2.7064 * R, YMAX * R])
+  };
+  const sc = 0.5 / (Math.PI * R);
+  return L.extend({}, L.CRS.Earth, { code: 'EqualEarth', projection, transformation: new L.Transformation(sc, 0.5, -sc, 0.5) });
+})();
 const STATE_Z = 4;
 const CONTS = [['Africa', 'cAfrica'], ['Antarctica', 'cAntarctica'], ['Asia', 'cAsia'], ['Europe', 'cEurope'], ['North America', 'cNorthAmerica'], ['Oceania', 'cOceania'], ['South America', 'cSouthAmerica']];
 const NA = 'North America';
@@ -118,7 +143,7 @@ const app = window.app = {
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
-    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(FULL_BOUNDS, false, pad0) - 0.35));
+    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, this.boundsZoom(FULL_BOUNDS, pad0) - 0.35));
     this.updateMaxBounds();
     if (refit) this.fitTo(this.visBounds(), false); else this.clampToFrame();
   },
@@ -137,11 +162,18 @@ const app = window.app = {
     if (root[k] && n <= 1) return; /* at least one continent stays on */
     patch({ [k]: !root[k] });
   },
-  frameBounds() {
-    const f = this.frameRect;
-    const sw = map.containerPointToLatLng([f.left, f.top + f.height]);
-    const ne = map.containerPointToLatLng([f.left + f.width, f.top]);
-    return L.latLngBounds(sw, ne);
+  /* pixel box of a lat/lng box at zoom z. Sampled along a grid, not just two corners: in Equal Earth the widest point of a box is at
+     the latitude nearest the equator, not at a corner. */
+  pxBox(b, z) {
+    const s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast(), out = L.bounds([]);
+    const lats = [s, n, 0, ...[1, 2, 3, 4, 5, 6, 7].map((i) => s + (n - s) * i / 8)].filter((la) => la >= s && la <= n);
+    for (const la of lats) for (const lo of [w, e]) out.extend(map.project([la, lo], z));
+    return out;
+  },
+  /* like map.getBoundsZoom(b, false, pad), using pxBox */
+  boundsZoom(b, pad) {
+    const z = map.getZoom(), box = this.pxBox(b, z), sz = map.getSize().subtract(pad), d = box.getSize();
+    return Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z + Math.log2(Math.min(sz.x / d.x, sz.y / d.y))));
   },
   /* The frame is off-centre (sidebar, dock, sheets, rail) and hidden continents shift the fit, so the frame (not the screen) is kept inside the world by clampToFrame instead of Leaflet's maxBounds. */
   updateMaxBounds() {
@@ -151,7 +183,8 @@ const app = window.app = {
   clampToFrame() {
     if (this.printing || !this.frameRect) return;
     // keep the visible continents and the frame overlapping: smaller land can roam inside the frame, bigger land must cover it
-    const f = this.frameRect, vb = this.visBounds(), a = map.latLngToContainerPoint(vb.getNorthWest()), b = map.latLngToContainerPoint(vb.getSouthEast());
+    const f = this.frameRect, box = this.pxBox(this.visBounds(), map.getZoom()), off = map.getPixelOrigin().subtract(map._getMapPanePos());
+    const a = box.min.subtract(off), b = box.max.subtract(off);
     const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (lo < flo ? flo - lo : hi > fhi ? fhi - hi : 0) : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
     const dx = fix(a.x, b.x, f.left, f.left + f.width), dy = fix(a.y, b.y, f.top, f.top + f.height);
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
@@ -159,9 +192,9 @@ const app = window.app = {
   fitTo(bounds, animate = true) {
     const f = this.frameRect, sz = map.getSize();
     const pad = L.point(sz.x - f.width * 0.94, sz.y - f.height * 0.94);
-    const z = map.getBoundsZoom(bounds, false, pad);
+    const z = this.boundsZoom(bounds, pad);
     const zz = Math.min(z, 10);
-    const pa = map.project(bounds.getSouthWest(), zz), pb = map.project(bounds.getNorthEast(), zz);
+    const { min: pa, max: pb } = this.pxBox(bounds, zz);
     // offset the centre when the frame is off-centre (sidebar, dock/sheets, rail), in one move so animation can't drop it
     const dy = (f.top + f.height / 2) - sz.y / 2, dx = (f.left + f.width / 2) - sz.x / 2;
     map.setView(map.unproject(pa.add(pb).divideBy(2).subtract([dx, dy]), zz), zz, { animate });
@@ -197,6 +230,8 @@ const app = window.app = {
       L_.coast.setStyle({ weight: s.wNation });
       s.grid ? L_.grid.addTo(map) : L_.grid.remove();
       s.equator ? L_.equator.addTo(map) : L_.equator.remove();
+      s.round ? L_.rim.addTo(map) : L_.rim.remove();
+      L_.rim.setStyle({ weight: s.wNation });
     }
     if (s.showCounties && na && !this.countyLayer && !this.countiesLoading) this.loadCounties();
     if (this.countyLayer) {
@@ -210,9 +245,30 @@ const app = window.app = {
       back(L_.states); back(L_.countries);
       for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
     }
+    if (!!s.round !== (map.options.crs === EE)) this.setProjection(s.round);
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
     else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds(), false); }
     this.renderLabels();
+  },
+  /* swap Mercator for Equal Earth (or back): every layer re-projects on viewreset, then the view refits */
+  setProjection(round) {
+    map.options.crs = round ? EE : L.CRS.EPSG3857;
+    map.options.minZoom = -3; /* so layoutFrame's new minimum can't start a zoom animation that lands after the refit */
+    map._resetView(map.getCenter(), map.getZoom(), true);
+    if (this.layers.grid) this.drawGrid();
+    this.userMoved = false;
+    if (this.frameRect) { this.fitTo(this.visBounds(), false); this.layoutFrame(true); }
+  },
+  /* lat/long grid every 30 degrees, and the equator + tropics. Mercator runs them past the map edge; Equal Earth stops them at its rim
+     and gives them enough points to bend with it. */
+  drawGrid() {
+    const round = map.options.crs === EE, e = round ? 180 : 200, p = round ? 90 : 85;
+    const line = (f) => Array.from({ length: 41 }, (_, i) => f(i / 40)), par = (la) => line((t) => [la, -e + 2 * e * t]);
+    const grid = [];
+    for (let la = -60; la <= 60; la += 30) grid.push(par(la));
+    for (let lo = -180; lo <= 180; lo += 30) grid.push(line((t) => [-p + 2 * p * t, lo]));
+    this.layers.grid.setLatLngs(grid);
+    this.layers.equator.setLatLngs([0, 23.4365, -23.4365].map(par));
   },
   /* show/hide everything that belongs to a continent that was switched off or on */
   applyConts() {
@@ -390,7 +446,7 @@ const app = window.app = {
     const eff = this.effOrient();
     this.saved = { center: map.getCenter(), zoom: map.getZoom(), sel: this.selected, minZoom: map.getMinZoom() };
     map.setMaxBounds(null); map.setMinZoom(-3);
-    const bounds = this.frameBounds();
+    const f = this.frameRect, fc = map.containerPointToLatLng([f.left + f.width / 2, f.top + f.height / 2]), z0 = map.getZoom();
     this.clearSel();
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
     let st = document.getElementById('pagecss');
@@ -401,7 +457,9 @@ const app = window.app = {
     document.body.style.setProperty('--ph', ph + 'in');
     document.body.classList.add('printing');
     map.invalidateSize({ animate: false });
-    map.fitBounds(bounds, { animate: false, padding: [0, 0] });
+    /* fit the frame to the page by centre and scale: a lat/lng box doesn't round-trip through a curved projection */
+    const ps = map.getSize();
+    map.setView(fc, z0 + Math.log2(Math.min(ps.x / f.width, ps.y / f.height)), { animate: false });
   },
   endPrint() {
     if (!this.printing) return;
@@ -648,13 +706,14 @@ map.on('click', (e) => {
     app.layers.provinces = mk(1.25);
     app.layers.stateMesh = mk(1.25, topojson.mesh(states, states.objects.states, (a, b) => a !== b));
     app.layers.nation = mk(2, topojson.mesh(states, states.objects.nation, (a, b) => a === b));
-    /* lat/long grid every 30 degrees, and the equator + tropics: thin dashed lines */
+    /* lat/long grid and the equator + tropics: thin dashed lines (drawGrid) */
     const dash = { color: INK, interactive: false, lineJoin: 'round' };
-    const grid = [];
-    for (let la = -60; la <= 60; la += 30) grid.push([[la, -200], [la, 200]]);
-    for (let lo = -180; lo <= 180; lo += 30) grid.push([[-85, lo], [85, lo]]);
-    app.layers.grid = L.polyline(grid, { ...dash, weight: 0.9, dashArray: '2 6', opacity: 0.8 });
-    app.layers.equator = L.polyline([[[0, -200], [0, 200]], [[23.4365, -200], [23.4365, 200]], [[-23.4365, -200], [-23.4365, 200]]], { ...dash, weight: 1.75, dashArray: '9 7' });
+    app.layers.grid = L.polyline([], { ...dash, weight: 0.9, dashArray: '2 6', opacity: 0.8 });
+    app.layers.equator = L.polyline([], { ...dash, weight: 1.75, dashArray: '9 7' });
+    app.drawGrid();
+    /* the round world's edge, drawn like the coastline */
+    const edge = Array.from({ length: 91 }, (_, i) => -90 + 2 * i);
+    app.layers.rim = L.polyline([...edge.map((la) => [la, -180]), ...edge.reverse().map((la) => [la, 180]), [-90, -180]], { ...base, weight: 2 });
 
     const mkLbl = (lat, lng) => L.marker([lat, lng], { icon: L.divIcon({ className: 'lbl-wrap', html: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     for (const l of app.data.labels) app.labelMarkers[l.name] = mkLbl(l.lat, l.lng);
@@ -692,7 +751,7 @@ map.on('click', (e) => {
 })();
 
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
-app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool'].map((k) => [k, root[k]])));
+app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool','round'].map((k) => [k, root[k]])));
 
 /* initial frame + fit */
 app.layoutFrame(true);
