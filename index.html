@@ -273,6 +273,7 @@ body.printing .ft{box-shadow:none!important;border:0!important;background:transp
 body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @media print{
   html,body{background:#fff}
+  body.printing.print-rot #map{transform-origin:0 0;transform:rotate(90deg) translateY(-100%)}
 }
 </style>
 </head>

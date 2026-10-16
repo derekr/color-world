@@ -87,6 +87,7 @@ const WT = (() => {
   return mkCRS('WinkelTripel', projection);
 })();
 const SHAPES = { flat: L.CRS.EPSG3857, round: EE, globe: WT };
+const IGNORES_PAGE_SIZE = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
 const STATE_Z = 4;
 const CONTS = [['Africa', 'cAfrica'], ['Antarctica', 'cAntarctica'], ['Asia', 'cAsia'], ['Europe', 'cEurope'], ['North America', 'cNorthAmerica'], ['Oceania', 'cOceania'], ['South America', 'cSouthAmerica']];
 const NA = 'North America';
@@ -482,7 +483,11 @@ const app = window.app = {
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
     let st = document.getElementById('pagecss');
     if (!st) { st = document.createElement('style'); st.id = 'pagecss'; document.head.appendChild(st); }
-    st.textContent = `@page { size: letter ${eff}; margin: 0.4in }`;
+    /* Safari (and every iOS browser, all WebKit) ignores @page size, so its print dialog always opens in portrait. There a landscape page
+       prints on a portrait sheet with the map turned a quarter turn, which comes out of the printer the same. */
+    const rot = eff === 'landscape' && IGNORES_PAGE_SIZE;
+    document.body.classList.toggle('print-rot', rot);
+    st.textContent = `@page { size: letter ${rot ? 'portrait' : eff}; margin: 0.4in }`;
     const [pw, ph] = eff === 'landscape' ? [10.2, 7.7] : [7.7, 10.2];
     document.body.style.setProperty('--pw', pw + 'in');
     document.body.style.setProperty('--ph', ph + 'in');
