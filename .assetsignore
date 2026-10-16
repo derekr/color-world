@@ -6,3 +6,5 @@ wrangler.jsonc
 .wrangler
 node_modules
 scripts
+locales
+worker.js
