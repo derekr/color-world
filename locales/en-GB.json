@@ -1,0 +1,15 @@
+{
+  "lang": "en-GB",
+  "dir": "en-gb",
+  "url": "https://colour-world.perfectdays.dev/",
+  "html": {
+    "Coloring Map": "Colouring Map",
+    "Make your own printable coloring map of the world.": "Make your own printable colouring map of the world.",
+    "Coloring Map app showing a black-and-white outline map of the world inside a dashed print frame, with yellow toggles for country and state lines and a grid of Features tiles in the sidebar.": "Colouring Map app showing a black-and-white outline map of the world inside a dashed print frame, with yellow toggles for country and state lines and a grid of Features tiles in the sidebar."
+  },
+  "js": {
+    "coloring-page.pdf": "colouring-page.pdf",
+    "Areas get an outline you can color inside.": "Areas get an outline you can colour inside.",
+    "We'll draw your places, lines and areas in coloring-page style.": "We'll draw your places, lines and areas in colouring-page style."
+  }
+}

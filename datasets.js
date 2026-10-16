@@ -2,6 +2,8 @@
    Loaded as its own module (modulepreloaded by index.html); it brings its own CSS and the drop zone + sheet elements,
    and keeps added datasets in IndexedDB so they survive a reload. ---------- */
 import { mergePatch, root } from './vendor/datastar-rocket.js';
+
+const i18n = (s) => (window.I18N && window.I18N[s]) || s; /* see app.js */
 const patch = (o) => mergePatch(o);
 const app = await new Promise((r) => { const t = () => (window.app ? r(window.app) : setTimeout(t, 40)); t(); });
 const map = app.map;
@@ -162,7 +164,7 @@ function analyze(features, fname, title) {
     else { cfg.pt = 'dot'; why.push(`${pts} places is a lot, so they are small dots${nameKey ? ' with no names, so the page stays readable' : ''}.`); }
   }
   if (n.line) why.push(trip ? 'It sounds like a trip, so lines are dashed like a route.' : 'Lines are drawn in the same ink as the map.');
-  if (n.poly) why.push('Areas get an outline you can color inside.');
+  if (n.poly) why.push(i18n('Areas get an outline you can color inside.'));
   if (nameKey && cfg.labels) why.push(`Names come from the “${nameKey}” column.`);
   else if (nameKey) why.push(`Names (from “${nameKey}”) are off because there are so many.`);
   return { counts: n, pts, bounds: L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]), keys: strKeys.concat([...keys].filter(([, e]) => !e.str).map(([k]) => k)), cfg, why };
@@ -267,7 +269,7 @@ function drawTiles(fresh) {
 const stage = document.getElementById('stage');
 stage.insertAdjacentHTML('beforeend', `<div class="drop" id="dropZone" aria-hidden="true"><div class="drop-in">
   <svg width="64" height="64" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h17l9 9v27H12z" fill="#FFC93C"/><path d="M29 6v9h9"/><path d="M25 21v14M19 29l6 6 6-6" stroke-width="3"/></g></svg>
-  <b>Drop it on the map!</b><span>We'll draw your places, lines and areas in coloring-page style.</span></div></div>
+  <b>Drop it on the map!</b><span>${i18n("We'll draw your places, lines and areas in coloring-page style.")}</span></div></div>
 <div class="ds" id="dsSheet" role="dialog" aria-label="Your data"></div>`);
 const sheet = document.getElementById('dsSheet');
 const seg = (name, val, opts) => `<div class="seg" role="group" data-k="${name}">${opts.map(([v, label, ic]) => `<button type="button" data-v="${v}" aria-pressed="${v === val}">${ic || ''}${label}</button>`).join('')}</div>`;

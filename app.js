@@ -5,6 +5,8 @@ import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 /* Deploys stamp each asset URL with ?v=<content hash> so it can be cached for a year (scripts/stamp.mjs). Literal paths
    are rewritten in place; a path built at runtime has to go through asset(), which reads the manifest the stamp writes
    into index.html (locally there is none, so it returns the plain path). */
+/* UI text drawn from JS goes through i18n(): a translated page (scripts/locales.mjs) injects window.I18N, English → its language */
+const i18n = (s) => (window.I18N && window.I18N[s]) || s;
 const asset = (p) => (window.ASSET_V && window.ASSET_V[p] ? `${p}?v=${window.ASSET_V[p]}` : p);
 
 const INK = '#1E1B18';
@@ -470,11 +472,11 @@ const app = window.app = {
       const { pdf } = await this.buildPdf();
       const blob = pdf.output('blob');
       if (dl) {
-        try { await dl.save({ filename: 'coloring-page.pdf', data: blob }); return; }
+        try { await dl.save({ filename: i18n('coloring-page.pdf'), data: blob }); return; }
         catch (e) { if (e && e.code === 'declined') return; /* otherwise fall back */ }
       }
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = 'coloring-page.pdf';
+      a.href = URL.createObjectURL(blob); a.download = i18n('coloring-page.pdf');
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     } catch (e) { console.error('print failed', e); }

@@ -2,9 +2,15 @@
 
 A kid-friendly map you can turn into an 8.5 × 11 coloring page. Pick a place, toggle country, state and county lines, adjust line weights, add names, capitals or your own words, then print. You can also drop your own GeoJSON, TopoJSON or CSV (latitude/longitude columns) on the map: it is drawn in the same style and added as a toggleable tile under Features → My data, kept in the browser between visits.
 
-It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com) for the map and [Datastar + Rocket](https://data-star.dev) signals for the UI. The custom data feature lives in its own module, `datasets.js`, which `index.html` modulepreloads. No build step: serve the folder with any static server, e.g. `python3 -m http.server`.
+It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com) for the map and [Datastar + Rocket](https://data-star.dev) signals for the UI. The custom data feature lives in its own module, `datasets.js`, which `index.html` modulepreloads. No build step: serve the folder with any static server, e.g. `python3 -m http.server` (the en-GB page needs `npx wrangler dev`, see Locales).
 
 Deploys add one step: the Workers Builds build command is `node scripts/stamp.mjs --write`, which adds `?v=<content hash>` to every reference to `fonts/`, `vendor/`, `data/`, `app.js` and `datasets.js` and marks those as cacheable for a year (`immutable`). Locally nothing is stamped and the files revalidate as usual. A path built at runtime has to go through `asset()` in app.js; the script fails the build if it finds a reference it couldn't version. Run `node scripts/stamp.mjs` (no `--write`) to check without changing files.
+
+## Locales
+
+`index.html` is the US English page at color-world.perfectdays.dev. Each `locales/<lang>.json` gets its own copy of the page, built by `node scripts/locales.mjs` into `<dir>/index.html` (not committed). wrangler runs it before every deploy, preview and `wrangler dev`, so on deploys it copies the stamped page. A locale file maps English text to its own: `html` for whole text nodes and attribute values in `index.html`, `js` for strings that `app.js` and `datasets.js` pass through `i18n()`. Anything left out stays English, and the build fails if a key stops matching. Each locale also needs its own Early Hints block in `_headers`, which the build checks against the one for `/`.
+
+British English (`locales/en-GB.json`) is served at colour-world.perfectdays.dev. `worker.js` serves `en-gb/index.html` at `/` on that host, redirects `/en-gb/` there from either live host, and on previews serves it at `/en-gb/`. Use `npx wrangler dev` to try it locally (`/en-gb/`); a plain static server won't map its asset paths.
 
 ## Data and libraries
 
