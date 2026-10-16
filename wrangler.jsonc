@@ -1,5 +1,5 @@
-// Cloudflare Worker that serves the repo root as static assets. worker.js only runs first for the en-GB page
-// (colour-world.perfectdays.dev); everything else goes straight to the assets.
+// Cloudflare Worker that serves the repo root as static assets. worker.js only runs first for the translated pages
+// (locales/); everything else goes straight to the assets.
 {
   "name": "color-world",
   "compatibility_date": "2026-10-16",
@@ -7,9 +7,9 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/en-gb", "/en-gb/*"]
+    "run_worker_first": ["/", "/en-gb", "/en-gb/*", "/es", "/es/*", "/fr", "/fr/*", "/de", "/de/*"]
   },
-  // Builds en-gb/index.html from index.html and locales/. wrangler runs this before every deploy, preview upload and
+  // Builds <dir>/index.html for each locale from index.html and locales/. wrangler runs this before every deploy, preview upload and
   // `wrangler dev`, so on deploys it runs after the Workers Builds build command (scripts/stamp.mjs) and copies the stamped page.
   "build": {
     "command": "node scripts/locales.mjs"

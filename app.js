@@ -5,9 +5,12 @@ import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 /* Deploys stamp each asset URL with ?v=<content hash> so it can be cached for a year (scripts/stamp.mjs). Literal paths
    are rewritten in place; a path built at runtime has to go through asset(), which reads the manifest the stamp writes
    into index.html (locally there is none, so it returns the plain path). */
-/* UI text drawn from JS goes through i18n(): a translated page (scripts/locales.mjs) injects window.I18N, English → its language */
-const i18n = (s) => (window.I18N && window.I18N[s]) || s;
-const asset = (p) => (window.ASSET_V && window.ASSET_V[p] ? `${p}?v=${window.ASSET_V[p]}` : p);
+const asset = (p) => { const v = window.ASSET_V && window.ASSET_V[p.replace(/^\//, '')]; return v ? `${p}?v=${v}` : p; };
+/* UI text drawn from JS goes through i18n(): a translated page (scripts/locales.mjs) injects window.I18N, English → its
+   language, with {name} slots filled from vars. Place names come from window.PLACE_NAMES, keyed by place key (c:<iso>) or
+   English state name; English names stay the keys everywhere else. */
+const i18n = (s, vars) => ((window.I18N && window.I18N[s]) || s).replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? vars[k] : m));
+const nameOf = (key, en) => (window.PLACE_NAMES && window.PLACE_NAMES[key]) || en;
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
@@ -62,7 +65,7 @@ rocket('color-map', {
   mode: 'light',
   props: ({ json }) => ({ center: json.default(() => [20, 0]), zoom: json.default(() => 2) }),
   renderOnPropChange: false,
-  render: ({ html }) => html`<div id="map" role="application" aria-label="World map" data-ref:container></div>`,
+  render: ({ html }) => html`<div id="map" role="application" aria-label="${i18n('World map')}" data-ref:container></div>`,
   onFirstRender: ({ refs, props, cleanup }) => {
     const m = L.map(refs.container, {
       zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
@@ -118,7 +121,7 @@ const app = window.app = {
     const f = document.getElementById('frame');
     Object.assign(f.style, { left: left + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
     const auto = this.s && this.s.orient === 'auto';
-    patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
+    patch({ frameTag: (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(eff) });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
     map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(FULL_BOUNDS, false, pad0) - 0.35));
     this.updateMaxBounds();
@@ -237,7 +240,7 @@ const app = window.app = {
   async loadCounties() {
     this.countiesLoading = true;
     try {
-      const topo = await (await fetch('data/counties-10m.json')).json();
+      const topo = await (await fetch('/data/counties-10m.json')).json();
       topo.objects.counties.geometries = topo.objects.counties.geometries.filter((g) => +String(g.id).padStart(5, '0').slice(0, 2) < 60);
       const mesh = topojson.mesh(topo, topo.objects.counties, (a, b) => a !== b && String(a.id).slice(0, 2) === String(b.id).slice(0, 2));
       this.countyLayer = L.geoJSON(clean(mesh), { style: { color: INK, weight: this.s.wCounty, fill: false, lineJoin: 'round', lineCap: 'round' }, interactive: false, smoothFactor: 1 });
@@ -268,7 +271,7 @@ const app = window.app = {
     const vis = this.vis, na = vis.has(NA);
     for (const l of this.data.labels) {
       const m = this.labelMarkers[l.name]; if (!m) continue;
-      this.setLbl(m, na ? this.labelHtml(l.name, s.names && stateZ ? (l.short || l.name) : '', l.tornadoes) : '');
+      this.setLbl(m, na ? this.labelHtml(l.name, s.names && stateZ ? (l.short || l.display) : '', l.tornadoes) : '');
     }
     /* greedy collision pass: state names first, then countries by importance; drop names that would overlap */
     const placed = [];
@@ -278,7 +281,7 @@ const app = window.app = {
       return { x1: pt.x - w / 2, x2: pt.x + w / 2, y1: pt.y - h / 2, y2: pt.y + h / 2 };
     };
     const hit = (b) => placed.some((p) => b.x1 < p.x2 && b.x2 > p.x1 && b.y1 < p.y2 && b.y2 > p.y1);
-    if (s.names && stateZ && na) for (const l of this.data.labels) placed.push(box(map.latLngToContainerPoint([l.lat, l.lng]), l.short || l.name, l.name));
+    if (s.names && stateZ && na) for (const l of this.data.labels) placed.push(box(map.latLngToContainerPoint([l.lat, l.lng]), l.short || l.display, l.name));
     /* fixed continent / ocean names: shown while zoomed out; country names step aside for them */
     for (const c of this.contMarkers) { const on = s.contNames && vis.has(c.cont) && z <= 5; on ? c.m.addTo(map) : c.m.remove(); if (on) placed.push(box(map.latLngToContainerPoint([c.lat, c.lng]), c.text + '     ', '')); }
     for (const c of this.oceanMarkers) { const on = s.oceanNames && z <= 5; on ? c.m.addTo(map) : c.m.remove(); }
@@ -323,10 +326,10 @@ const app = window.app = {
   closePop() { this.clearSel(); patch({ popOpen: false }); },
 
   /* ---------- free text ---------- */
-  addTag(latlng, text = 'My words') {
+  addTag(latlng, text = i18n('My words')) {
     const wrap = document.createElement('div');
     wrap.className = 'ft';
-    wrap.innerHTML = '<span class="ft-grip" role="button" tabindex="0" aria-label="Move text"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></span><span class="ft-t" contenteditable="true" role="textbox" aria-label="Text"></span><button class="ft-x" aria-label="Delete text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    wrap.innerHTML = '<span class="ft-grip" role="button" tabindex="0" aria-label="' + i18n('Move text') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></span><span class="ft-t" contenteditable="true" role="textbox" aria-label="' + i18n('Text') + '"></span><button class="ft-x" aria-label="' + i18n('Delete text') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
     const t = wrap.querySelector('.ft-t'); t.textContent = text;
     const icon = L.divIcon({ className: 'ft-wrap', html: wrap, iconSize: [0, 0] });
     const mk = L.marker(latlng, { icon, interactive: true, keyboard: false, bubblingMouseEvents: false }).addTo(map);
@@ -365,22 +368,22 @@ const app = window.app = {
   },
   candidates() {
     if (this._cands) return this._cands;
-    const c = [{ name: 'World', b: this.visBounds() }];
-    if (this.vis.has(NA)) c.push({ name: 'United States', b: US_BOUNDS });
+    const c = [{ name: i18n('World'), alt: 'World', b: this.visBounds() }];
+    if (this.vis.has(NA)) c.push({ name: nameOf('c:840', 'United States'), alt: 'United States', b: US_BOUNDS });
     const cs = [...this.places].filter((p) => p.a3 !== 'USA' && this.vis.has(p.cont)).sort((a, b) => (a.rank - b.rank) || a.display.localeCompare(b.display));
     for (const p of cs) {
       if (!p.feature) continue;
       const fo = FIT[p.fname];
       c.push({ name: p.display, alt: p.fname, b: fo ? L.latLngBounds(fo) : this.boundsOf(p.feature.geometry, FIT_OPTS[p.fname]) });
     }
-    for (const f of this.vis.has(NA) ? this.data.features || [] : []) c.push({ name: f.properties.name, b: this.boundsOf(f.geometry, f.properties.name === 'Alaska' ? { maxLng: 0 } : {}) });
+    for (const f of this.vis.has(NA) ? this.data.features || [] : []) c.push({ name: nameOf(f.properties.name, f.properties.name), alt: f.properties.name, b: this.boundsOf(f.geometry, f.properties.name === 'Alaska' ? { maxLng: 0 } : {}) });
     return (this._cands = c);
   },
   search(q) {
-    q = (q || '').trim().toLowerCase(); if (!q) return;
+    q = (q || '').trim().toLocaleLowerCase(); if (!q) return;
     if (q === 'usa' || q === 'us') q = 'united states';
     const c = this.candidates();
-    const nm = (x) => [x.name.toLowerCase(), (x.alt || '').toLowerCase()];
+    const nm = (x) => [x.name.toLocaleLowerCase(), (x.alt || '').toLowerCase()];
     const hit = c.find((x) => nm(x).includes(q)) || c.find((x) => nm(x).some((n) => n.startsWith(q))) || c.find((x) => nm(x).some((n) => n.includes(q)));
     if (hit && hit.b.isValid()) { this.userMoved = true; this.fitTo(hit.b); }
   },
@@ -458,7 +461,7 @@ const app = window.app = {
     for (const btn of document.querySelectorAll('.js-print')) { btn.disabled = b; btn.setAttribute('aria-busy', b ? 'true' : 'false'); }
     for (const lbl of document.querySelectorAll('.js-printlbl')) {
       if (lbl.dataset.idle == null) lbl.dataset.idle = lbl.textContent;
-      lbl.textContent = b ? (lbl.dataset.busy || 'Making page\u2026') : lbl.dataset.idle;
+      lbl.textContent = b ? (lbl.dataset.busy || i18n('Making page…')) : lbl.dataset.idle;
     }
   },
   async print() {
@@ -517,7 +520,7 @@ const loadScript = (src) => libs[src] || (libs[src] = new Promise((res, rej) => 
   const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => { delete libs[src]; rej(new Error('failed to load ' + src)); };
   document.head.appendChild(el);
 }));
-const loadPdfLibs = () => Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]);
+const loadPdfLibs = () => Promise.all([loadScript('/vendor/html2canvas.min.js'), loadScript('/vendor/jspdf.umd.min.js')]);
 for (const ev of ['pointerover', 'focusin', 'touchstart']) document.addEventListener(ev, (e) => { if (e.target.closest && e.target.closest('.js-print')) loadPdfLibs().catch(() => {}); }, { once: false, passive: true });
 
 /* Fast buttons: [data-fast] acts on pointerdown instead of waiting for click. The follow-up real click from the same
@@ -574,7 +577,7 @@ map.on('click', (e) => {
 /* ---------- load data ---------- */
 (async () => {
   try {
-    const load = (n, priority = 'auto') => fetch(asset(`data/${n}.json`), { priority }).then((r) => r.json());
+    const load = (n, priority = 'auto') => fetch(asset(`/data/${n}.json`), { priority }).then((r) => r.json());
     /* the world outline comes in twice: a light 110m one to draw quickly, then the detailed 50m one (fetched once the rest is in) */
     const [states, labels, caps, torn, world, wlabels, wcaps, prov, cont] = await Promise.all(
       ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-110m', 'world-labels', 'world-capitals', 'world-provinces-50m', 'continents'].map((n) => load(n)));
@@ -583,7 +586,10 @@ map.on('click', (e) => {
     states.objects.nation = states.objects.states;
     const feats = fixFeatures(topojson.feature(states, states.objects.states));
     app.data.features = feats.features;
-    app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
+    app.data.labels = labels.labels.map((l) => {
+      const display = nameOf(l.name, l.name);
+      return { ...l, display, short: display === l.name ? l.short : null, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) };
+    });
 
     // world: every country is tagged with a continent (data/continents.json); all continents start switched on
     const contOf = (o) => (o.id ? cont.ids[o.id] : cont.names[o.properties.name]) || null;
@@ -609,12 +615,14 @@ map.on('click', (e) => {
       let display = l.name;
       if (/^People's Republic of China/.test(display)) display = 'China';
       if (display === 'United States of America') display = 'United States';
-      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, src: l });
+      const key = 'c:' + (l.iso || l.a3 || l.name), en = display;
+      display = nameOf(key, display);
+      app.places.push({ key, display, en, short: l.short && display === en && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, src: l });
     }
     const wfeats = useWorld(world);
     const list = document.getElementById('places');
     const seen = new Set();
-    ['World', 'United States', ...app.places.filter((p) => p.a3 !== 'USA').map((p) => p.display).sort(), ...feats.features.map((f) => f.properties.name)]
+    [i18n('World'), nameOf('c:840', 'United States'), ...app.places.filter((p) => p.a3 !== 'USA').map((p) => p.display).sort((a, b) => a.localeCompare(b)), ...feats.features.map((f) => nameOf(f.properties.name, f.properties.name))]
       .forEach((n) => { if (seen.has(n)) return; seen.add(n); const o = document.createElement('option'); o.value = n; list.appendChild(o); });
 
     const base = { color: INK, lineJoin: 'round', lineCap: 'round', fill: false, interactive: false };
@@ -641,7 +649,7 @@ map.on('click', (e) => {
       style: fillStyle,
       onEachFeature: (f, lyr) => {
         app.placeLayers[f.properties.name] = lyr;
-        lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(f.properties.name, f.properties.name, e.containerPoint); });
+        lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(f.properties.name, nameOf(f.properties.name, f.properties.name), e.containerPoint); });
       }
     }).addTo(map);
     const mk = (w, mesh) => L.geoJSON(mesh ? clean(mesh) : null, { style: { ...base, weight: w }, interactive: false }).addTo(map);
@@ -662,11 +670,11 @@ map.on('click', (e) => {
     for (const l of app.data.labels) app.labelMarkers[l.name] = mkLbl(l.lat, l.lng);
     const fixed = (cls, text) => L.divIcon({ className: 'lbl-wrap', html: `<div class="lbl"><span class="${cls}">${esc(text)}</span></div>`, iconSize: [0, 0] });
     const mkFixed = (cls, text, lat, lng) => L.marker([lat, lng], { icon: fixed(cls, text), interactive: false, keyboard: false, zIndexOffset: -50 });
-    for (const [text, lat, lng] of CONT_LABELS) app.contMarkers.push({ cont: text, text, lat, lng, m: mkFixed('cn', text, lat, lng) });
-    for (const [text, lat, lng] of OCEAN_LABELS) app.oceanMarkers.push({ text, lat, lng, m: mkFixed('on-lbl', text, lat, lng) });
+    for (const [cont, lat, lng] of CONT_LABELS) { const text = i18n(cont); app.contMarkers.push({ cont, text, lat, lng, m: mkFixed('cn', text, lat, lng) }); }
+    for (const [en, lat, lng] of OCEAN_LABELS) { const text = i18n(en); app.oceanMarkers.push({ text, lat, lng, m: mkFixed('on-lbl', text, lat, lng) }); }
     for (const p of app.places) p.marker = mkLbl(p.lat, p.lng);
     const contByA3 = Object.fromEntries(app.places.filter((p) => p.a3).map((p) => [p.a3, p.cont]));
-    const contByName = Object.fromEntries(app.places.map((p) => [p.display, p.cont]));
+    const contByName = Object.fromEntries(app.places.map((p) => [p.en, p.cont]));
     const star = (c, minZoom) => app.capMarkers.push({ minZoom, m: L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'lbl-wrap', html: STAR, iconSize: [0, 0] }), interactive: false, keyboard: false, zIndexOffset: -100 }) });
     for (const c of caps) star(c, STATE_Z);
     for (const c of wcaps) star(c, c.minZoom);

@@ -3,7 +3,7 @@
    and keeps added datasets in IndexedDB so they survive a reload. ---------- */
 import { mergePatch, root } from './vendor/datastar-rocket.js';
 
-const i18n = (s) => (window.I18N && window.I18N[s]) || s; /* see app.js */
+const i18n = (s, vars) => ((window.I18N && window.I18N[s]) || s).replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? vars[k] : m)); /* see app.js */
 const patch = (o) => mergePatch(o);
 const app = await new Promise((r) => { const t = () => (window.app ? r(window.app) : setTimeout(t, 40)); t(); });
 const map = app.map;
@@ -102,7 +102,7 @@ function csvFeatures(text) {
   const rows = text.split(/\r?\n/).filter((l) => l.trim());
   const head = splitCsv(rows.shift() || '');
   const li = head.findIndex((h) => /^(lat|latitude|y)$/i.test(h)), gi = head.findIndex((h) => /^(lon|lng|long|longitude|x)$/i.test(h));
-  if (li < 0 || gi < 0) throw new Error('This spreadsheet needs a latitude column and a longitude column so we know where each row goes.');
+  if (li < 0 || gi < 0) throw new Error(i18n('This spreadsheet needs a latitude column and a longitude column so we know where each row goes.'));
   return rows.map((r) => {
     const c = splitCsv(r), props = {};
     head.forEach((h, i) => { if (i !== li && i !== gi) props[h] = isNaN(+c[i]) || c[i] === '' ? c[i] : +c[i]; });
@@ -111,13 +111,13 @@ function csvFeatures(text) {
 }
 function readFile(text, fname) {
   const t = text.trim();
-  if (/\.(kml|gpx|shp|zip|kmz)$/i.test(fname)) throw new Error('KML, GPX and shapefiles are on the plan, but this mockup only reads GeoJSON, TopoJSON and CSV.');
+  if (/\.(kml|gpx|shp|zip|kmz)$/i.test(fname)) throw new Error(i18n('KML, GPX and shapefiles are on the plan, but this mockup only reads GeoJSON, TopoJSON and CSV.'));
   if (t[0] === '{' || t[0] === '[') {
-    let j; try { j = JSON.parse(t); } catch (e) { throw new Error('This looks like a JSON file, but it is broken or cut off, so we could not read it.'); }
+    let j; try { j = JSON.parse(t); } catch (e) { throw new Error(i18n('This looks like a JSON file, but it is broken or cut off, so we could not read it.')); }
     return { features: toFeatures(j), title: (j && typeof j.name === 'string' && j.name) || null };
   }
   if (/\.(csv|tsv|txt)$/i.test(fname) || /,|\t/.test(t.split('\n')[0])) return { features: csvFeatures(t), title: null };
-  throw new Error('We could not find any map shapes in that file.');
+  throw new Error(i18n('We could not find any map shapes in that file.'));
 }
 
 /* ---------- 2. look at it and guess a good way to draw it ---------- */
@@ -139,8 +139,8 @@ function analyze(features, fname, title) {
     for (const f of features) if (famOf(f.geometry)) walk(f.geometry.coordinates, (p) => { if (p[0] > 0) p[0] -= 360; });
     bb[0] = lo2; bb[2] = hi2;
   }
-  if (!n.point && !n.line && !n.poly) throw new Error('We could not find any places, lines or areas in that file.');
-  if (bb[0] < -360 || bb[2] > 360 || bb[1] < -90.5 || bb[3] > 90.5) throw new Error('This file uses a kind of map coordinates we can not read yet. Saving it again as GeoJSON in latitude and longitude (WGS84) will fix it.');
+  if (!n.point && !n.line && !n.poly) throw new Error(i18n('We could not find any places, lines or areas in that file.'));
+  if (bb[0] < -360 || bb[2] > 360 || bb[1] < -90.5 || bb[3] > 90.5) throw new Error(i18n('This file uses a kind of map coordinates we can not read yet. Saving it again as GeoJSON in latitude and longitude (WGS84) will fix it.'));
   /* which property holds the names, and is there an order (day 1, day 2...) */
   const keys = new Map();
   for (const f of features.slice(0, 300)) for (const [k, v] of Object.entries(f.properties || {})) {
@@ -159,14 +159,14 @@ function analyze(features, fname, title) {
   const labelable = n.point + n.poly + n.line;
   cfg.labels = !!nameKey && labelable <= 60 && pts <= 40;
   if (n.point) {
-    if (orderKey && pts <= 40) { cfg.pt = 'num'; why.push(`The places have a “${orderKey}” number, so we numbered them in order.`); }
-    else if (pts <= 40) { cfg.pt = 'star'; why.push(`Only ${pts} places, so each one gets a big star to color.`); }
-    else { cfg.pt = 'dot'; why.push(`${pts} places is a lot, so they are small dots${nameKey ? ' with no names, so the page stays readable' : ''}.`); }
+    if (orderKey && pts <= 40) { cfg.pt = 'num'; why.push(i18n('The places have a “{key}” number, so we numbered them in order.', { key: orderKey })); }
+    else if (pts <= 40) { cfg.pt = 'star'; why.push(i18n('Only {n} places, so each one gets a big star to color.', { n: pts })); }
+    else { cfg.pt = 'dot'; why.push(nameKey ? i18n('{n} places is a lot, so they are small dots with no names, so the page stays readable.', { n: pts }) : i18n('{n} places is a lot, so they are small dots.', { n: pts })); }
   }
-  if (n.line) why.push(trip ? 'It sounds like a trip, so lines are dashed like a route.' : 'Lines are drawn in the same ink as the map.');
+  if (n.line) why.push(trip ? i18n('It sounds like a trip, so lines are dashed like a route.') : i18n('Lines are drawn in the same ink as the map.'));
   if (n.poly) why.push(i18n('Areas get an outline you can color inside.'));
-  if (nameKey && cfg.labels) why.push(`Names come from the “${nameKey}” column.`);
-  else if (nameKey) why.push(`Names (from “${nameKey}”) are off because there are so many.`);
+  if (nameKey && cfg.labels) why.push(i18n('Names come from the “{key}” column.', { key: nameKey }));
+  else if (nameKey) why.push(i18n('Names (from “{key}”) are off because there are so many.', { key: nameKey }));
   return { counts: n, pts, bounds: L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]), keys: strKeys.concat([...keys].filter(([, e]) => !e.str).map(([k]) => k)), cfg, why };
 }
 
@@ -258,7 +258,7 @@ function drawTiles(fresh) {
   page.querySelector('.my-empty').style.display = sets.length ? 'none' : '';
   for (const set of sets) {
     const w = document.createElement('div'); w.className = 'tw'; w.style.position = 'relative';
-    w.innerHTML = `<button class="tile${set === fresh ? ' new' : ''}" style="width:100%" aria-pressed="${set.on}">${iconSvg(set.features, set.info)}<span class="tn">${esc(set.cfg.name)}</span>${set.on ? CK : ''}</button><button class="gear" aria-label="Change ${esc(set.cfg.name)}">${GEAR}</button>`;
+    w.innerHTML = `<button class="tile${set === fresh ? ' new' : ''}" style="width:100%" aria-pressed="${set.on}">${iconSvg(set.features, set.info)}<span class="tn">${esc(set.cfg.name)}</span>${set.on ? CK : ''}</button><button class="gear" aria-label="${i18n('Change {name}', { name: esc(set.cfg.name) })}">${GEAR}</button>`;
     w.firstChild.addEventListener('click', () => { set.on = !set.on; set.on ? set.layer.addTo(map) : set.layer.remove(); drawTiles(); save(set); });
     w.lastChild.addEventListener('click', (e) => { e.stopPropagation(); openSheet(set, false); });
     page.appendChild(w);
@@ -269,8 +269,8 @@ function drawTiles(fresh) {
 const stage = document.getElementById('stage');
 stage.insertAdjacentHTML('beforeend', `<div class="drop" id="dropZone" aria-hidden="true"><div class="drop-in">
   <svg width="64" height="64" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h17l9 9v27H12z" fill="#FFC93C"/><path d="M29 6v9h9"/><path d="M25 21v14M19 29l6 6 6-6" stroke-width="3"/></g></svg>
-  <b>Drop it on the map!</b><span>${i18n("We'll draw your places, lines and areas in coloring-page style.")}</span></div></div>
-<div class="ds" id="dsSheet" role="dialog" aria-label="Your data"></div>`);
+  <b>${i18n('Drop it on the map!')}</b><span>${i18n("We'll draw your places, lines and areas in coloring-page style.")}</span></div></div>
+<div class="ds" id="dsSheet" role="dialog" aria-label="${i18n('Your data')}"></div>`);
 const sheet = document.getElementById('dsSheet');
 const seg = (name, val, opts) => `<div class="seg" role="group" data-k="${name}">${opts.map(([v, label, ic]) => `<button type="button" data-v="${v}" aria-pressed="${v === val}">${ic || ''}${label}</button>`).join('')}</div>`;
 const IC = {
@@ -282,28 +282,28 @@ const IC = {
   dash: `<svg viewBox="0 0 24 24"><path d="M3 12h18" stroke="${INK}" stroke-width="3" stroke-dasharray="5 4"/></svg>`,
   dotl: `<svg viewBox="0 0 24 24"><path d="M3 12h18" stroke="${INK}" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="0.1 5.5"/></svg>`
 };
-const range = (k, v, min, max) => `<label class="slide" style="padding:0 2px"><span class="sr">Thickness</span><svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="${INK}" stroke-width="1"/></svg><input type="range" min="${min}" max="${max}" step="0.25" value="${v}" data-k="${k}"><svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="${INK}" stroke-width="6" stroke-linecap="round"/></svg></label>`;
+const range = (k, v, min, max) => `<label class="slide" style="padding:0 2px"><span class="sr">${i18n('Thickness')}</span><svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="${INK}" stroke-width="1"/></svg><input type="range" min="${min}" max="${max}" step="0.25" value="${v}" data-k="${k}"><svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="${INK}" stroke-width="6" stroke-linecap="round"/></svg></label>`;
 let current = null, isNew = false;
 function openSheet(set, fresh) {
   current = set; isNew = fresh;
-  const c = set.cfg, n = set.info.counts, P = (k, one, many) => (n[k] ? `<span class="chip">${KIND_IC[k]}${k === 'point' ? set.info.pts : n[k]} ${(k === 'point' ? set.info.pts : n[k]) === 1 ? one : many}</span>` : '');
+  const c = set.cfg, n = set.info.counts, P = (k, one, many) => (n[k] ? `<span class="chip">${KIND_IC[k]}${k === 'point' ? set.info.pts : n[k]} ${i18n((k === 'point' ? set.info.pts : n[k]) === 1 ? one : many)}</span>` : '');
   sheet.innerHTML = `
-    <div class="ds-head">${iconSvg(set.features, set.info)}<input class="field" data-k="name" value="${esc(c.name)}" aria-label="Name"></div>
+    <div class="ds-head">${iconSvg(set.features, set.info)}<input class="field" data-k="name" value="${esc(c.name)}" aria-label="${i18n('Name')}"></div>
     <div class="ds-found">${P('point', 'place', 'places')}${P('line', 'line', 'lines')}${P('poly', 'area', 'areas')}</div>
-    <p class="ds-why">${fresh ? set.info.why.map(esc).join(' ') : 'Change how it looks on the page.'}</p>
-    ${n.point ? `<div class="ds-sec"><span class="lab">Places look like</span>${seg('pt', c.pt, [['star', 'Stars', IC.star], ['dot', 'Dots', IC.dot], ['pin', 'Pins', IC.pin], ['num', 'Numbers', IC.num]])}</div>` : ''}
-    ${n.line ? `<div class="ds-sec"><span class="lab">Lines</span>${seg('line', c.line, [['solid', 'Solid', IC.solid], ['dash', 'Dashed', IC.dash], ['dot', 'Dotted', IC.dotl]])}${range('lw', c.lw, 1, 8)}</div>` : ''}
-    ${n.poly ? `<div class="ds-sec"><span class="lab">Outline</span>${range('pw', c.pw, 0.75, 6)}</div>` : ''}
-    ${set.info.keys.length ? `<div class="ds-sec"><button type="button" class="toggle" data-k="labels" aria-pressed="${c.labels}">Write names <span class="sw"><i></i></span></button>
-      <select class="field" data-k="labelKey" aria-label="Names come from" ${c.labels ? '' : 'style="display:none"'}>${set.info.keys.map((k) => `<option value="${esc(k)}" ${k === c.labelKey ? 'selected' : ''}>from “${esc(k)}”</option>`).join('')}</select></div>` : ''}
-    <div class="ds-acts">${fresh ? '<button type="button" class="btn" data-act="cancel">Cancel</button><button type="button" class="btn go" data-act="add">Add to map</button>'
-      : `<button type="button" class="btn del" data-act="remove" aria-label="Remove"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button><button type="button" class="btn" data-act="zoom">Zoom to it</button><button type="button" class="btn go" data-act="done">Done</button>`}</div>`;
+    <p class="ds-why">${fresh ? set.info.why.map(esc).join(' ') : i18n('Change how it looks on the page.')}</p>
+    ${n.point ? `<div class="ds-sec"><span class="lab">${i18n('Places look like')}</span>${seg('pt', c.pt, [['star', i18n('Stars'), IC.star], ['dot', i18n('Dots'), IC.dot], ['pin', i18n('Pins'), IC.pin], ['num', i18n('Numbers'), IC.num]])}</div>` : ''}
+    ${n.line ? `<div class="ds-sec"><span class="lab">${i18n('Lines')}</span>${seg('line', c.line, [['solid', i18n('Solid'), IC.solid], ['dash', i18n('Dashed'), IC.dash], ['dot', i18n('Dotted'), IC.dotl]])}${range('lw', c.lw, 1, 8)}</div>` : ''}
+    ${n.poly ? `<div class="ds-sec"><span class="lab">${i18n('Outline')}</span>${range('pw', c.pw, 0.75, 6)}</div>` : ''}
+    ${set.info.keys.length ? `<div class="ds-sec"><button type="button" class="toggle" data-k="labels" aria-pressed="${c.labels}">${i18n('Write names')} <span class="sw"><i></i></span></button>
+      <select class="field" data-k="labelKey" aria-label="${i18n('Names come from')}" ${c.labels ? '' : 'style="display:none"'}>${set.info.keys.map((k) => `<option value="${esc(k)}" ${k === c.labelKey ? 'selected' : ''}>${i18n('from “{key}”', { key: esc(k) })}</option>`).join('')}</select></div>` : ''}
+    <div class="ds-acts">${fresh ? `<button type="button" class="btn" data-act="cancel">${i18n('Cancel')}</button><button type="button" class="btn go" data-act="add">${i18n('Add to map')}</button>`
+      : `<button type="button" class="btn del" data-act="remove" aria-label="${i18n('Remove')}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button><button type="button" class="btn" data-act="zoom">${i18n('Zoom to it')}</button><button type="button" class="btn go" data-act="done">${i18n('Done')}</button>`}</div>`;
   sheet.classList.add('on');
   if (matchMedia('(max-width:1099px)').matches) patch({ panel: '' });
 }
 function showError(msg, fname) {
   current = null;
-  sheet.innerHTML = `<div class="ds-head"><span style="font-size:22px;font-weight:800">Hmm, that didn't work</span></div><div class="ds-err">${esc(msg)}</div><p class="ds-why">${esc(fname)}</p><div class="ds-acts"><button type="button" class="btn go" data-act="close">OK</button></div>`;
+  sheet.innerHTML = `<div class="ds-head"><span style="font-size:22px;font-weight:800">${i18n("Hmm, that didn't work")}</span></div><div class="ds-err">${esc(msg)}</div><p class="ds-why">${esc(fname)}</p><div class="ds-acts"><button type="button" class="btn go" data-act="close">${i18n('OK')}</button></div>`;
   sheet.classList.add('on');
 }
 const closeSheet = () => { sheet.classList.remove('on'); current = null; };
@@ -351,18 +351,18 @@ const picker = document.getElementById('dsFile');
 picker.addEventListener('change', () => { addFiles([...picker.files]); picker.value = ''; });
 document.getElementById('dsPick').addEventListener('click', () => picker.click());
 
-const SAMPLES = [['national-parks.geojson', 'National parks'], ['route-66.geojson', 'Route 66'], ['us-regions.geojson', 'US regions'], ['road-trip.geojson', 'Road trip'], ['state-capitals.csv', 'State capitals (CSV)'], ['world-capitals.geojson', 'World capitals']];
+const SAMPLES = [['national-parks.geojson', 'National parks'], ['route-66.geojson', 'Route 66'], ['us-regions.geojson', 'US regions'], ['road-trip.geojson', 'Road trip'], ['state-capitals.csv', 'State capitals (CSV)'], ['world-capitals.geojson', 'World capitals']].map(([f, l]) => [f, i18n(l)]);
 const sampleBox = document.getElementById('dsSamples');
 let samplesLoaded = false;
 const loadSamples = () => { if (samplesLoaded) return; samplesLoaded = true; for (const [file, label] of SAMPLES) {
   const b = document.createElement('button'); b.className = 'tile'; b.type = 'button';
   b.innerHTML = `<svg class="ic" viewBox="0 0 48 48"></svg><span class="tn">${esc(label)}</span>`;
   sampleBox.appendChild(b);
-  fetch('samples/' + file).then((r) => r.text()).then((text) => {
+  fetch('/samples/' + file).then((r) => r.text()).then((text) => {
     b._text = text;
     try { const r = readFile(text, file), info = analyze(r.features, file, r.title); b.querySelector('.ic').outerHTML = iconSvg(r.features, info); } catch (e) { /* icon stays blank */ }
   });
-  b.addEventListener('click', async () => addText(b._text || await (await fetch('samples/' + file)).text(), file));
+  b.addEventListener('click', async () => addText(b._text || await (await fetch('/samples/' + file)).text(), file));
 } };
 /* samples are only fetched once someone opens Add data */
 document.querySelector('.tile.add').addEventListener('pointerdown', loadSamples, { once: true });

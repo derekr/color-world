@@ -24,8 +24,41 @@
   Link: </vendor/topojson-client.min.js>; rel=preload; as=script
   Link: </data/world-110m.json>; rel=preload; as=fetch; crossorigin
   Link: </data/states-10m.json>; rel=preload; as=fetch; crossorigin
-# The en-GB page (colour-world.perfectdays.dev, see worker.js) needs the same files. scripts/locales.mjs checks they match.
+# Each translated page (locales/, see worker.js) needs the same files. scripts/locales.mjs checks they match.
 /en-gb/
+  Link: </fonts/baloo-2-latin-600-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-700-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-800-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </vendor/datastar-rocket.js>; rel=modulepreload
+  Link: </app.js>; rel=modulepreload
+  Link: </datasets.js>; rel=modulepreload
+  Link: </vendor/leaflet.js>; rel=preload; as=script
+  Link: </vendor/topojson-client.min.js>; rel=preload; as=script
+  Link: </data/world-110m.json>; rel=preload; as=fetch; crossorigin
+  Link: </data/states-10m.json>; rel=preload; as=fetch; crossorigin
+/es/
+  Link: </fonts/baloo-2-latin-600-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-700-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-800-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </vendor/datastar-rocket.js>; rel=modulepreload
+  Link: </app.js>; rel=modulepreload
+  Link: </datasets.js>; rel=modulepreload
+  Link: </vendor/leaflet.js>; rel=preload; as=script
+  Link: </vendor/topojson-client.min.js>; rel=preload; as=script
+  Link: </data/world-110m.json>; rel=preload; as=fetch; crossorigin
+  Link: </data/states-10m.json>; rel=preload; as=fetch; crossorigin
+/fr/
+  Link: </fonts/baloo-2-latin-600-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-700-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </fonts/baloo-2-latin-800-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
+  Link: </vendor/datastar-rocket.js>; rel=modulepreload
+  Link: </app.js>; rel=modulepreload
+  Link: </datasets.js>; rel=modulepreload
+  Link: </vendor/leaflet.js>; rel=preload; as=script
+  Link: </vendor/topojson-client.min.js>; rel=preload; as=script
+  Link: </data/world-110m.json>; rel=preload; as=fetch; crossorigin
+  Link: </data/states-10m.json>; rel=preload; as=fetch; crossorigin
+/de/
   Link: </fonts/baloo-2-latin-600-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
   Link: </fonts/baloo-2-latin-700-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
   Link: </fonts/baloo-2-latin-800-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
