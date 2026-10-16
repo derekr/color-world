@@ -64,7 +64,8 @@
     "Portrait": "Vertical",
     "Zoom in": "Acercar",
     "Zoom out": "Alejar",
-    "Language": "Idioma"
+    "Language": "Idioma",
+    "Share link": "Compartir enlace"
   },
   "js": {
     "World map": "Mapa del mundo",
@@ -142,7 +143,9 @@
     "Europe": "Europa",
     "North America": "América del Norte",
     "Oceania": "Oceanía",
-    "South America": "América del Sur"
+    "South America": "América del Sur",
+    "Link copied": "Enlace copiado",
+    "Copy this link": "Copia este enlace"
   },
   "replace": {
     "data-text=\"['Words', 'Map', 'My data'][$featPage]\"": "data-text=\"['Palabras', 'Mapa', 'Mis datos'][$featPage]\"",

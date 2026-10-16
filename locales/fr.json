@@ -60,7 +60,8 @@
     "Landscape": "Paysage",
     "Zoom in": "Zoom avant",
     "Zoom out": "Zoom arrière",
-    "Language": "Langue"
+    "Language": "Langue",
+    "Share link": "Partager le lien"
   },
   "js": {
     "World map": "Carte du monde",
@@ -135,7 +136,9 @@
     "Asia": "Asie",
     "North America": "Amérique du Nord",
     "Oceania": "Océanie",
-    "South America": "Amérique du Sud"
+    "South America": "Amérique du Sud",
+    "Link copied": "Lien copié",
+    "Copy this link": "Copie ce lien"
   },
   "replace": {
     "data-text=\"['Words', 'Map', 'My data'][$featPage]\"": "data-text=\"['Mots', 'Carte', 'Mes données'][$featPage]\"",
