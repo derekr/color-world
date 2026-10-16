@@ -5,14 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Coloring Map</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Crect width=%2740%27 height=%2740%27 rx=%2711%27 fill=%27%23FFC93C%27/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/baloo-2-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/baloo-2-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="vendor/datastar-rocket.js">
+<link rel="preload" href="vendor/leaflet.js" as="script">
+<link rel="preload" href="vendor/topojson-client.min.js" as="script">
+<link rel="preload" href="data/world-50m.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/states-10m.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/world-labels.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/labels.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/world-provinces-50m.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/world-capitals.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/capitals.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
+<link rel="preload" href="data/tornadoes.json" as="fetch" type="application/json" crossorigin fetchpriority="high">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
+@font-face{font-family:'Baloo 2';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/baloo-2-latin-500-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Baloo 2';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/baloo-2-latin-600-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Baloo 2';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/baloo-2-latin-700-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Baloo 2';font-style:normal;font-weight:800;font-display:swap;src:url(fonts/baloo-2-latin-800-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 :root{--ink:#1E1B18;--paper:#FFFBF2;--accent:#FFC93C;--accent-soft:#FFC93C66;--coral:#FF8A65;--muted:#5B534B;--track:#EDE5D6}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);font-family:'Baloo 2','Trebuchet MS',system-ui,sans-serif}
 button{font:inherit;color:inherit}
+button,[role=button],.toggle,.chip,.btn,.rb,.seg button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+color-map{position:absolute;inset:0;display:block}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .app{min-height:100vh;display:flex;flex-direction:column}
 header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 20px;min-height:64px;background:#fff;border-bottom:2px solid var(--ink)}
@@ -185,7 +202,7 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 </style>
 </head>
 <body>
-<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="window.app && window.app.sync({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
+<div class="app" data-class:has-sheet="$panel != '' || $popOpen" data-signals="{showCountries:true,wCountry:1.25,showStates:true,wState:1.25,showCounties:false,wCounty:0.75,wNation:2,names:false,capitals:false,tornado:false,mine:true,hollow:false,orient:'auto',tool:'move',query:'',panel:'',popOpen:false,popName:'',popKey:'',popWords:'',popX:0,popY:0,frameTag:'Auto · landscape'}" data-effect="((s) => window.app && window.app.sync(s))({showCountries:$showCountries,wCountry:$wCountry,showStates:$showStates,wState:$wState,showCounties:$showCounties,wCounty:$wCounty,wNation:$wNation,names:$names,capitals:$capitals,tornado:$tornado,mine:$mine,hollow:$hollow,orient:$orient,tool:$tool})">
 
 <header>
   <div class="brand">
@@ -210,20 +227,20 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
  <div class="cards">
   <section class="card" aria-labelledby="h-lines" data-class:open="$panel == 'lines'">
     <span class="grab"></span>
-    <div class="card-head"><h2 id="h-lines">Lines</h2><button class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <button class="toggle" data-attr:aria-pressed="($showCountries) ? 'true' : 'false'" data-on:click="$showCountries = !$showCountries">Country lines <span class="sw"><i></i></span></button>
+    <div class="card-head"><h2 id="h-lines">Lines</h2><button data-fast class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <button data-fast class="toggle" data-attr:aria-pressed="($showCountries) ? 'true' : 'false'" data-on:click="$showCountries = !$showCountries">Country lines <span class="sw"><i></i></span></button>
     <label class="slide" data-show="$showCountries"><span class="sr">Country line thickness</span>
       <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
       <input type="range" min="0.5" max="6" step="0.25" data-bind="wCountry">
       <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
     </label>
-    <button class="toggle" data-attr:aria-pressed="($showStates) ? 'true' : 'false'" data-on:click="$showStates = !$showStates">State lines <span class="sw"><i></i></span></button>
+    <button data-fast class="toggle" data-attr:aria-pressed="($showStates) ? 'true' : 'false'" data-on:click="$showStates = !$showStates">State lines <span class="sw"><i></i></span></button>
     <label class="slide" data-show="$showStates"><span class="sr">State line thickness</span>
       <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
       <input type="range" min="0.5" max="6" step="0.25" data-bind="wState">
       <svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="#1E1B18" stroke-width="6" stroke-linecap="round"/></svg>
     </label>
-    <button class="toggle" data-attr:aria-pressed="($showCounties) ? 'true' : 'false'" data-on:click="$showCounties = !$showCounties">County lines <span class="sw"><i></i></span></button>
+    <button data-fast class="toggle" data-attr:aria-pressed="($showCounties) ? 'true' : 'false'" data-on:click="$showCounties = !$showCounties">County lines <span class="sw"><i></i></span></button>
     <label class="slide" data-show="$showCounties"><span class="sr">County line thickness</span>
       <svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="#1E1B18" stroke-width="1"/></svg>
       <input type="range" min="0.25" max="3" step="0.25" data-bind="wCounty">
@@ -239,80 +256,80 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
   <section class="card" aria-labelledby="h-labels" data-class:open="$panel == 'labels'">
     <span class="grab"></span>
-    <div class="card-head"><h2 id="h-labels">Labels</h2><button class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-head"><h2 id="h-labels">Labels</h2><button data-fast class="btn icon-btn close-x" aria-label="Close" data-on:click="$panel = ''"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
-      <button class="chip" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names">
+      <button data-fast class="chip" data-attr:aria-pressed="($names) ? 'true' : 'false'" data-on:click="$names = !$names">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>
         Names</button>
-      <button class="chip" data-attr:aria-pressed="($capitals) ? 'true' : 'false'" data-on:click="$capitals = !$capitals">
+      <button data-fast class="chip" data-attr:aria-pressed="($capitals) ? 'true' : 'false'" data-on:click="$capitals = !$capitals">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1-4.5-4.2 6.1-.8z"/></svg>
         Capitals</button>
-      <button class="chip" data-attr:aria-pressed="($tornado) ? 'true' : 'false'" data-on:click="$tornado = !$tornado">
+      <button data-fast class="chip" data-attr:aria-pressed="($tornado) ? 'true' : 'false'" data-on:click="$tornado = !$tornado">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18M5 9h13M8 13h9M10 17h5M12 21h1"/></svg>
         Tornadoes</button>
-      <button class="chip" data-attr:aria-pressed="($mine) ? 'true' : 'false'" data-on:click="$mine = !$mine">
+      <button data-fast class="chip" data-attr:aria-pressed="($mine) ? 'true' : 'false'" data-on:click="$mine = !$mine">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
         My words</button>
     </div>
     <div style="height:6px"></div>
     <div class="seg" role="group" aria-label="Letters">
-      <button data-attr:aria-pressed="(!$hollow) ? 'true' : 'false'" data-on:click="$hollow = false"><span style="font-size:22px;font-weight:800">Aa</span> Solid</button>
-      <button data-attr:aria-pressed="($hollow) ? 'true' : 'false'" data-on:click="$hollow = true"><span style="font-size:22px;font-weight:800;color:#fff;-webkit-text-stroke:1.4px #1E1B18;paint-order:stroke fill">Aa</span> Hollow</button>
+      <button data-fast data-attr:aria-pressed="(!$hollow) ? 'true' : 'false'" data-on:click="$hollow = false"><span style="font-size:22px;font-weight:800">Aa</span> Solid</button>
+      <button data-fast data-attr:aria-pressed="($hollow) ? 'true' : 'false'" data-on:click="$hollow = true"><span style="font-size:22px;font-weight:800;color:#fff;-webkit-text-stroke:1.4px #1E1B18;paint-order:stroke fill">Aa</span> Hollow</button>
     </div>
   </section>
  </div>
 </aside>
 
 <main id="stage">
-  <div id="map" role="application" aria-label="World map"></div>
+  <color-map></color-map>
   <div class="frame" id="frame"><span class="tag" data-text="$frameTag"></span></div>
 
   <div class="pop" id="placeSheet" data-show="$popOpen" style="display:none" data-style:left="$popX + 'px'" data-style:top="$popY + 'px'" role="dialog" aria-label="Place words">
     <span class="grab"></span>
     <div class="pop-head">
       <span data-text="$popName"></span>
-      <button class="btn icon-btn" aria-label="Close" style="height:40px;width:40px;border-radius:12px;box-shadow:none" data-on:click="window.app.closePop()">
+      <button data-fast class="btn icon-btn" aria-label="Close" style="height:40px;width:40px;border-radius:12px;box-shadow:none" data-on:click="window.app.closePop()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
     <label for="popWords">My words</label>
     <input id="popWords" class="field" type="text" autocomplete="off" data-bind="popWords" data-on:input="window.app.setWords($popKey, evt.target.value)">
-    <button class="btn done" data-on:click="window.app.closePop()">Done</button>
+    <button data-fast class="btn done" data-on:click="window.app.closePop()">Done</button>
   </div>
 
   <div class="tools" role="group" aria-label="Tools">
-    <button class="btn icon-btn" aria-label="Move the map" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'">
+    <button data-fast class="btn icon-btn" aria-label="Move the map" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>
     </button>
-    <button class="btn" style="font-size:17px;padding:0 14px" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = 'text'">
+    <button data-fast class="btn" style="font-size:17px;padding:0 14px" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = 'text'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>
       Add words
     </button>
   </div>
 
   <nav id="dock" aria-label="Tools">
-    <button class="rb rb-move" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>Move</button>
-    <button class="rb rb-words" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = ($tool == 'text') ? 'move' : 'text'; $panel = ''; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Words</button>
-    <button class="rb rb-lines" data-attr:aria-pressed="($panel == 'lines') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'lines') ? '' : 'lines'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6c3-2 6 2 9 0s6-2 9 0M3 12c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/></svg>Lines</button>
-    <button class="rb rb-labels" data-attr:aria-pressed="($panel == 'labels') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'labels') ? '' : 'labels'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>Labels</button>
+    <button data-fast class="rb rb-move" data-attr:aria-pressed="($tool == 'move') ? 'true' : 'false'" data-on:click="$tool = 'move'"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.2a7 7 0 01-5.6-2.8L3.5 15a1.6 1.6 0 012.5-2l2 2"/></svg>Move</button>
+    <button data-fast class="rb rb-words" data-attr:aria-pressed="($tool == 'text') ? 'true' : 'false'" data-on:click="$tool = ($tool == 'text') ? 'move' : 'text'; $panel = ''; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Words</button>
+    <button data-fast class="rb rb-lines" data-attr:aria-pressed="($panel == 'lines') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'lines') ? '' : 'lines'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6c3-2 6 2 9 0s6-2 9 0M3 12c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/></svg>Lines</button>
+    <button data-fast class="rb rb-labels" data-attr:aria-pressed="($panel == 'labels') ? 'true' : 'false'" data-on:click="$panel = ($panel == 'labels') ? '' : 'labels'; window.app.closePop()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19L8.5 5 14 19M5 14h7"/><path d="M16 11h5v8h-5z"/></svg>Labels</button>
     <button class="rb rb-print js-print" data-on:click="window.app.print()"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z" fill="#fff"/></svg><span class="js-printlbl" data-busy="Making…">Print</span></button>
   </nav>
 
   <div class="seg pageseg" id="orientSeg" role="group" aria-label="Page">
-    <button data-attr:aria-pressed="($orient == 'auto') ? 'true' : 'false'" data-on:click="$orient = 'auto'">Auto</button>
-    <button aria-label="Landscape" data-attr:aria-pressed="($orient == 'landscape') ? 'true' : 'false'" data-on:click="$orient = 'landscape'">
+    <button data-fast data-attr:aria-pressed="($orient == 'auto') ? 'true' : 'false'" data-on:click="$orient = 'auto'">Auto</button>
+    <button data-fast aria-label="Landscape" data-attr:aria-pressed="($orient == 'landscape') ? 'true' : 'false'" data-on:click="$orient = 'landscape'">
       <svg width="30" height="24" viewBox="0 0 30 24" aria-hidden="true"><rect x="2" y="3" width="26" height="18" rx="3" fill="#fff" stroke="#1E1B18" stroke-width="2.4"/></svg>
     </button>
-    <button aria-label="Portrait" data-attr:aria-pressed="($orient == 'portrait') ? 'true' : 'false'" data-on:click="$orient = 'portrait'">
+    <button data-fast aria-label="Portrait" data-attr:aria-pressed="($orient == 'portrait') ? 'true' : 'false'" data-on:click="$orient = 'portrait'">
       <svg width="24" height="28" viewBox="0 0 24 28" aria-hidden="true"><rect x="3" y="2" width="18" height="24" rx="3" fill="#fff" stroke="#1E1B18" stroke-width="2.4"/></svg>
     </button>
   </div>
 
   <div class="zoom">
-    <button class="btn icon-btn" aria-label="Zoom in" data-on:click="window.app.map.zoomIn()">
+    <button data-fast class="btn icon-btn" aria-label="Zoom in" data-on:click="window.app.map.zoomIn()">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     </button>
-    <button class="btn icon-btn" aria-label="Zoom out" data-on:click="window.app.map.zoomOut()">
+    <button data-fast class="btn icon-btn" aria-label="Zoom out" data-on:click="window.app.map.zoomOut()">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E1B18" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>
     </button>
   </div>
@@ -322,11 +339,8 @@ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/topojson-client.min.js"></script>
-<script src="vendor/html2canvas.min.js"></script>
-<script src="vendor/jspdf.umd.min.js"></script>
-<script type="module" src="vendor/datastar.js"></script>
 <script type="module">
-import { mergePatch, root } from './vendor/datastar.js';
+import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
@@ -364,12 +378,27 @@ const patch = (o) => mergePatch(o);
 /* keep in sync with the CSS: phone = narrow OR short landscape (<500px tall, <1100 wide) */
 const mq = { phone: matchMedia('(max-width:699px), (max-width:1099px) and (max-height:499px)'), tablet: matchMedia('(min-width:700px) and (max-width:1099px) and (min-height:500px)') };
 
-const map = L.map('map', {
-  zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
-  wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: MAX_BOUNDS, maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
-  worldCopyJump: false, doubleClickZoom: false
+/* The map lifecycle belongs to <color-map>: it creates Leaflet in onFirstRender and removes it on disconnect.
+   Layer/style state still flows from the Datastar signals through app.sync(). */
+let resolveMap;
+const mapReady = new Promise((r) => { resolveMap = r; });
+rocket('color-map', {
+  mode: 'light',
+  props: ({ json }) => ({ center: json.default(() => [20, 0]), zoom: json.default(() => 2) }),
+  renderOnPropChange: false,
+  render: ({ html }) => html`<div id="map" role="application" aria-label="World map" data-ref:container></div>`,
+  onFirstRender: ({ refs, props, cleanup }) => {
+    const m = L.map(refs.container, {
+      zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, maxBounds: MAX_BOUNDS, maxBoundsViscosity: 1, renderer: L.svg({ padding: 0.5 }),
+      worldCopyJump: false, doubleClickZoom: false
+    });
+    m.setView(props.center, props.zoom);
+    cleanup(() => m.remove());
+    resolveMap(m);
+  }
 });
-map.setView([20, 0], 2);
+const map = await mapReady;
 
 const app = window.app = {
   map, s: null, data: {}, placeLayers: {}, labelMarkers: {}, capMarkers: [], places: [], words: {}, freeTags: [],
@@ -654,6 +683,7 @@ const app = window.app = {
   },
   /* Render the map to a canvas (scale ~3) and wrap it in a Letter PDF. Returns { pdf, canvas }. */
   async buildPdf() {
+    await loadPdfLibs();
     this.preparePrint();
     const eff = this.effOrient();
     try {
@@ -730,6 +760,36 @@ const app = window.app = {
     });
   }
 };
+
+/* html2canvas + jsPDF are only needed for PDF export: load on demand (warmed on first hover/press of a Print button) */
+const libs = {};
+const loadScript = (src) => libs[src] || (libs[src] = new Promise((res, rej) => {
+  const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => { delete libs[src]; rej(new Error('failed to load ' + src)); };
+  document.head.appendChild(el);
+}));
+const loadPdfLibs = () => Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]);
+for (const ev of ['pointerover', 'focusin', 'touchstart']) document.addEventListener(ev, (e) => { if (e.target.closest && e.target.closest('.js-print')) loadPdfLibs().catch(() => {}); }, { once: false, passive: true });
+
+/* Fast buttons: [data-fast] acts on pointerdown instead of waiting for click. The follow-up real click from the same
+   press is swallowed; keyboard clicks (detail 0) and scripted clicks pass through. Not used for Print/links. */
+const fastClick = (() => {
+  const stamp = new WeakMap();
+  const scrollable = (el) => { for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight + 1) return true; } return false; };
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const b = e.target.closest && e.target.closest('[data-fast]');
+    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return;
+    if (e.pointerType !== 'mouse' && scrollable(b)) return; /* a touch inside a scrolling sheet may be a scroll: wait for click */
+    stamp.set(b, Date.now());
+    b.click();
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (!e.isTrusted || e.detail === 0) return;
+    const b = e.target.closest && e.target.closest('[data-fast]');
+    const t = b && stamp.get(b);
+    if (t && Date.now() - t < 1500) { stamp.delete(b); e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
+})();
 
 /* native-print case only (e.g. browser menu print); our own flows manage printing themselves */
 window.addEventListener('beforeprint', () => { if (!app.busy) app.preparePrint(); });
@@ -828,6 +888,9 @@ map.on('click', (e) => {
     if (app.s) app.sync(app.s);
   } catch (e) { console.error('data load failed', e); }
 })();
+
+/* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
+app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','orient','tool'].map((k) => [k, root[k]])));
 
 /* initial frame + fit */
 app.layoutFrame(true);
