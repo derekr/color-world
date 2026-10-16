@@ -6,6 +6,12 @@ It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com)
 
 Deploys add one step: the Workers Builds build command is `node scripts/stamp.mjs --write`, which adds `?v=<content hash>` to every reference to `fonts/`, `vendor/`, `data/`, `app.js` and `datasets.js` and marks those as cacheable for a year (`immutable`). Locally nothing is stamped and the files revalidate as usual. A path built at runtime has to go through `asset()` in app.js; the script fails the build if it finds a reference it couldn't version. Run `node scripts/stamp.mjs` (no `--write`) to check without changing files.
 
+## Privacy
+
+The site is for kids, so it keeps no logs, sets no cookies and loads nothing from other sites. [PRIVACY.md](PRIVACY.md) lists each promise next to the code that keeps it, and `node scripts/privacy.mjs` checks them. It runs before `scripts/locales.mjs` in wrangler's build, so a deploy fails if one breaks.
+
+`osm.js` serves street data for the coming Neighborhood mode at `/osm/14/<x>/<y>.json`. It asks a public Overpass server for one zoom-14 tile (and a second server if the first is slow or busy) (buildings separately, at `-buildings.json`), sends none of the visitor's headers, and keeps only each shape's kind and public name. Workers Caching (`cache` in wrangler.jsonc) keeps each tile for a month and shares it between visitors.
+
 ## Locales
 
 `index.html` is the US English page at color-world.perfectdays.dev. Each `locales/<lang>.json` gets its own copy of the page, built by `node scripts/locales.mjs` into `<dir>/index.html` (not committed): British English at colour-world.perfectdays.dev, and Spanish, French and German at `/es/`, `/fr/` and `/de/`. wrangler runs the script before every deploy, preview and `wrangler dev`, so on deploys it copies the stamped page. A header menu links the pages.
@@ -18,6 +24,7 @@ Asset URLs are root-absolute (`/app.js`, `/data/…`) so every page shares one c
 
 - US states and counties: [us-atlas](https://github.com/topojson/us-atlas) (US Census Bureau)
 - World countries: [world-atlas](https://github.com/topojson/world-atlas) (`world-110m.json` is drawn first for a quick first paint; `world-50m.json` replaces it once the browser is idle, or right away on zoom-in or print); label points, capitals and provinces: [Natural Earth](https://www.naturalearthdata.com) (public domain)
+- Street data for Neighborhood mode: [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL), fetched through Overpass by `osm.js`
 - `samples/` holds the example files offered under Add data, made from the data above plus a few hand-placed points (national parks, Route 66, a road trip).
 - Tornado counts in `data/tornadoes.json` are placeholders and need a real source.
 - Vendored (no build step, see `vendor/` and `fonts/`):

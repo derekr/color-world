@@ -8,3 +8,5 @@ node_modules
 scripts
 locales
 worker.js
+osm.js
+PRIVACY.md
