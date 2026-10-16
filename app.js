@@ -214,12 +214,18 @@ const app = window.app = {
     const L_ = this.layers, vis = this.vis, v = (c) => vis.has(c);
     this.closePop();
     for (const f of this.fills) v(f.cont) ? L_.countries.addLayer(f.lyr) : L_.countries.removeLayer(f.lyr);
-    const { world, wc, gcont, prov } = this.topo, vc = (o) => v(gcont.get(o)), notUS = (o) => o.id !== '840';
+    this.drawWorldLines();
+    const { prov } = this.topo;
+    const pg = prov.objects.provinces.geometries.filter((g, i) => v(PROV_CONT[prov.letters[i]]));
+    L_.provinces.clearLayers().addData(clean(topojson.mesh(prov, { type: 'GeometryCollection', geometries: pg })));
+  },
+  /* country borders and coastline for the visible continents, from whichever world outline is loaded (110m first, then 50m) */
+  drawWorldLines() {
+    const L_ = this.layers, v = (c) => this.vis.has(c);
+    const { world, wc, gcont } = this.topo, vc = (o) => v(gcont.get(o)), notUS = (o) => o.id !== '840';
     L_.borders.clearLayers().addData(clean(topojson.mesh(world, wc, (a, b) => a !== b && notUS(a) && notUS(b) && vc(a) && vc(b))));
     /* coastline: arcs with exactly one included side (the other side is sea or a hidden continent) */
     L_.coast.clearLayers().addData(clean(topojson.mesh(world, wc, (a, b) => notUS(a) && notUS(b) && (a === b ? vc(a) : vc(a) !== vc(b)))));
-    const pg = prov.objects.provinces.geometries.filter((g, i) => v(PROV_CONT[prov.letters[i]]));
-    L_.provinces.clearLayers().addData(clean(topojson.mesh(prov, { type: 'GeometryCollection', geometries: pg })));
   },
   async loadCounties() {
     this.countiesLoading = true;
@@ -452,6 +458,7 @@ const app = window.app = {
     if (this.busy || this.printing) return;
     this.busy = true; this.setBusy(true);
     try {
+      await this.worldReady; /* print from the detailed 50m outline, not the quick 110m one */
       const dl = await this.dlReady;
       const inFrame = window.self !== window.top;
       if (!dl && !inFrame) { await this.nativePrint(); return; }
@@ -560,8 +567,10 @@ map.on('click', (e) => {
 /* ---------- load data ---------- */
 (async () => {
   try {
+    const load = (n, priority = 'auto') => fetch(`data/${n}.json`, { priority }).then((r) => r.json());
+    /* the world outline comes in twice: a light 110m one to draw quickly, then the detailed 50m one (fetched once the rest is in) */
     const [states, labels, caps, torn, world, wlabels, wcaps, prov, cont] = await Promise.all(
-      ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-50m', 'world-labels', 'world-capitals', 'world-provinces-50m', 'continents'].map((n) => fetch(`data/${n}.json`).then((r) => r.json())));
+      ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-110m', 'world-labels', 'world-capitals', 'world-provinces-50m', 'continents'].map((n) => load(n)));
     // Keep the 50 states + DC; drop territories (PR, GU, VI, AS, MP: FIPS >= 60).
     states.objects.states.geometries = states.objects.states.geometries.filter((g) => +g.id < 60);
     states.objects.nation = states.objects.states;
@@ -570,24 +579,32 @@ map.on('click', (e) => {
     app.data.labels = labels.labels.map((l) => ({ ...l, tornadoes: l.tornadoes != null ? l.tornadoes : (torn.values[l.name] ?? null) }));
 
     // world: every country is tagged with a continent (data/continents.json); all continents start switched on
-    const wc = world.objects.countries;
     const contOf = (o) => (o.id ? cont.ids[o.id] : cont.names[o.properties.name]) || null;
-    const gcont = new Map(wc.geometries.map((g) => [g, contOf(g)]));
     prov.letters = cont.provinces;
-    app.topo = { world, wc, gcont, prov };
-    const wfeats = fixFeatures(topojson.feature(world, wc));
     const NAME_FIX = { 'N. Cyprus': 'Turkish Republic of Northern Cyprus' };
-    const byIso = {}, byName = {};
-    wfeats.features.forEach((f) => { if (f.id) byIso[f.id] = f; else byName[NAME_FIX[f.properties.name] || f.properties.name] = f; });
+    /* switch to a world outline: topology for the border/coast meshes, and each place's country shape (for search and fills) */
+    const useWorld = (world) => {
+      const wc = world.objects.countries;
+      app.topo = { world, wc, gcont: new Map(wc.geometries.map((g) => [g, contOf(g)])), prov };
+      const wfeats = fixFeatures(topojson.feature(world, wc));
+      const byIso = {}, byName = {};
+      wfeats.features.forEach((f) => { if (f.id) byIso[f.id] = f; else byName[NAME_FIX[f.properties.name] || f.properties.name] = f; });
+      for (const p of app.places) {
+        const l = p.src, lc = (l.iso && cont.ids[l.iso]) || cont.names[l.name] || null;
+        const f = (l.iso && byIso[l.iso]) || byName[l.name] || null;
+        Object.assign(p, { feature: f, fname: f ? f.properties.name : null, cont: f ? contOf(f) || lc : lc });
+      }
+      app._cands = null;
+      return wfeats;
+    };
     for (const l of wlabels.labels) {
       if (l.iso === '010' || l.a3 === 'ATA') continue;
-      const lc = (l.iso && cont.ids[l.iso]) || cont.names[l.name] || null;
-      const f = (l.iso && byIso[l.iso]) || byName[l.name] || null;
       let display = l.name;
       if (/^People's Republic of China/.test(display)) display = 'China';
       if (display === 'United States of America') display = 'United States';
-      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, feature: f, fname: f ? f.properties.name : null, cont: f ? contOf(f) || lc : lc });
+      app.places.push({ key: 'c:' + (l.iso || l.a3 || l.name), display, short: l.short && l.short !== display ? l.short : null, minLabel: l.minLabel, rank: l.rank, a3: l.a3, lat: l.lat, lng: l.lng, src: l });
     }
+    const wfeats = useWorld(world);
     const list = document.getElementById('places');
     const seen = new Set();
     ['World', 'United States', ...app.places.filter((p) => p.a3 !== 'USA').map((p) => p.display).sort(), ...feats.features.map((f) => f.properties.name)]
@@ -595,8 +612,8 @@ map.on('click', (e) => {
 
     const base = { color: INK, lineJoin: 'round', lineCap: 'round', fill: false, interactive: false };
     const fillStyle = { stroke: false, fill: true, fillColor: '#FFC93C', fillOpacity: 0 };
-    const placeOf = new Map(app.places.filter((p) => p.feature).map((p) => [p.feature, p]));
-    app.layers.countries = L.geoJSON({ type: 'FeatureCollection', features: wfeats.features.filter((f) => f.id !== '840') }, {
+    let placeOf;
+    app.layers.countries = L.geoJSON(null, {
       style: fillStyle,
       onEachFeature: (f, lyr) => {
         app.fills.push({ lyr, cont: contOf(f) });
@@ -605,6 +622,14 @@ map.on('click', (e) => {
         lyr.on('click', (e) => { if (app.s && app.s.tool === 'move') app.selectPlace(p.key, p.display, e.containerPoint); });
       }
     }).addTo(map);
+    /* the invisible country fills that catch clicks and show the picked place */
+    const fillCountries = (wfeats) => {
+      for (const k in app.placeLayers) if (k.startsWith('c:')) delete app.placeLayers[k];
+      app.fills = [];
+      placeOf = new Map(app.places.filter((p) => p.feature).map((p) => [p.feature, p]));
+      app.layers.countries.clearLayers().addData({ type: 'FeatureCollection', features: wfeats.features.filter((f) => f.id !== '840') });
+    };
+    fillCountries(wfeats);
     app.layers.states = L.geoJSON(feats, {
       style: fillStyle,
       onEachFeature: (f, lyr) => {
@@ -643,6 +668,15 @@ map.on('click', (e) => {
     app.capMarkers.forEach((c) => { if (!c.cont) console.warn('capital without continent', c); });
     app.applyConts();
     if (app.s) app.sync(app.s);
+
+    /* now the detailed outline: swap it in without touching the open popover or the picked place */
+    app.worldReady = load('world-50m', 'low').then((w50) => {
+      fillCountries(useWorld(w50));
+      for (const f of app.fills) if (!app.vis.has(f.cont)) app.layers.countries.removeLayer(f.lyr);
+      if (app.selected && app.placeLayers[app.selected]) app.placeLayers[app.selected].setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 });
+      app.drawWorldLines();
+      if (app.s) app.sync(app.s);
+    }).catch((e) => console.error('detailed world map failed', e));
   } catch (e) { console.error('data load failed', e); }
 })();
 
