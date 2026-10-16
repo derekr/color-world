@@ -127,7 +127,7 @@ rocket('color-map', {
     const m = L.map(refs.container, {
       zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5,
       wheelPxPerZoomLevel: 120, minZoom: 1, maxZoom: 12, renderer: L.svg({ padding: 0.5 }),
-      worldCopyJump: false, doubleClickZoom: false
+      worldCopyJump: false, doubleClickZoom: false, trackResize: false /* relayout below handles resizes */
     });
     m.setView(props.center, props.zoom);
     cleanup(() => m.remove());
@@ -655,10 +655,16 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { app.closePop(); patch({ panel: '' }); }
 });
 const relayout = () => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); };
-const ro = new ResizeObserver(relayout);
+/* refitting redraws every outline, so a burst of resizes (dragging the window edge) runs one relayout at the start and one once it settles */
+let rlTimer = 0, rlPending = false;
+const relayoutSoon = () => {
+  if (rlTimer) { clearTimeout(rlTimer); rlPending = true; } else relayout();
+  rlTimer = setTimeout(() => { rlTimer = 0; if (rlPending) { rlPending = false; relayout(); } }, 150);
+};
+const ro = new ResizeObserver(relayoutSoon);
 /* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
 for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el);
-mq.phone.addEventListener('change', relayout); mq.tablet.addEventListener('change', relayout);
+mq.phone.addEventListener('change', relayoutSoon); mq.tablet.addEventListener('change', relayoutSoon);
 
 for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });
 map.on('zoomend', () => app.renderLabels());
