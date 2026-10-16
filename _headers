@@ -13,6 +13,7 @@
 # fetching the critical files while it waits for the HTML. Keep in sync with
 # the preloads at the top of index.html.
 /
+  Link: </fonts/baloo-2-latin-600-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
   Link: </fonts/baloo-2-latin-700-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
   Link: </fonts/baloo-2-latin-800-normal.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
   Link: </vendor/datastar-rocket.js>; rel=modulepreload

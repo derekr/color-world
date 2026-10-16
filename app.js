@@ -685,4 +685,7 @@ app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','s
 
 /* initial frame + fit */
 app.layoutFrame(true);
-requestAnimationFrame(() => { map.invalidateSize({ animate: false }); app.layoutFrame(true); });
+requestAnimationFrame(() => {
+  map.invalidateSize({ animate: false }); app.layoutFrame(true);
+  const f = document.getElementById('frame'); f.offsetWidth; f.classList.add('ready'); /* show it in place, transitions on from here */
+});

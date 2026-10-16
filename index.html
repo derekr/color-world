@@ -22,6 +22,7 @@ if (location.hostname.endsWith('github.io')) location.replace('https://color-wor
 <meta name="twitter:image" content="https://color-world.perfectdays.dev/og.png">
 <meta name="twitter:image:alt" content="Coloring Map app showing a black-and-white outline map of the world inside a dashed print frame, with yellow toggles for country and state lines and a grid of Features tiles in the sidebar.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Crect width=%2740%27 height=%2740%27 rx=%2711%27 fill=%27%23FFC93C%27/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/baloo-2-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/baloo-2-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/baloo-2-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="modulepreload" href="vendor/datastar-rocket.js">
@@ -136,6 +137,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .pageseg{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:1000;box-shadow:0 3px 0 var(--ink)}
 .zoom{position:absolute;right:20px;bottom:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
 .frame{position:absolute;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:left .3s,top .3s,width .3s,height .3s}
+.frame:not(.ready){visibility:hidden;transition:none} /* app.js places it, then adds .ready: no slide-in from 0,0 on load */
 .frame .tag{position:absolute;top:-36px;right:-3px;padding:5px 12px 3px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;font-weight:700;white-space:nowrap}
 .pop{position:absolute;z-index:1100;width:250px;padding:14px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:0 5px 0 var(--ink);display:flex;flex-direction:column;gap:10px}
 .pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
