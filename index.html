@@ -398,7 +398,8 @@ const app = window.app = {
     patch({ frameTag: (auto ? 'Auto · ' : '8.5 × 11 · ') + eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
     map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, map.getBoundsZoom(WORLD_BOUNDS, false, pad0) - 0.35));
-    if (refit) this.fitTo(WORLD_BOUNDS, false); else this.updateMaxBounds();
+    this.updateMaxBounds();
+    if (refit) this.fitTo(WORLD_BOUNDS, false); else this.clampToFrame();
   },
   frameBounds() {
     const f = this.frameRect;
@@ -406,20 +407,23 @@ const app = window.app = {
     const ne = map.containerPointToLatLng([f.left + f.width, f.top]);
     return L.latLngBounds(sw, ne);
   },
-  /* On phone/tablet the frame is off-centre (dock, sheets, rail), so widen the pan limit by the offset: the frame, not the screen, must stay inside the world. */
-  updateMaxBounds(z = map.getZoom()) {
-    if (this.printing || !this.frameRect) return;
-    if (!mq.phone.matches && !mq.tablet.matches) { map.setMaxBounds(MAX_BOUNDS); return; }
-    const f = this.frameRect, sz = map.getSize();
-    const nw = map.project(L.latLng(MAX_BOUNDS[1][0], MAX_BOUNDS[0][1]), z), se = map.project(L.latLng(MAX_BOUNDS[0][0], MAX_BOUNDS[1][1]), z);
-    map.setMaxBounds(L.latLngBounds(map.unproject(se.add([sz.x - f.left - f.width, sz.y - f.top - f.height]), z), map.unproject(nw.subtract([f.left, f.top]), z)));
+  /* Desktop: Leaflet's maxBounds. Phone/tablet: the frame is off-centre (dock, sheets, rail), so the frame (not the screen) is kept inside the world by clampToFrame. */
+  updateMaxBounds() {
+    if (this.printing) return;
+    map.setMaxBounds(mq.phone.matches || mq.tablet.matches ? null : MAX_BOUNDS);
+  },
+  clampToFrame() {
+    if (this.printing || !this.frameRect || !(mq.phone.matches || mq.tablet.matches)) return;
+    const f = this.frameRect, a = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[1][0], MAX_BOUNDS[0][1])), b = map.latLngToContainerPoint(L.latLng(MAX_BOUNDS[0][0], MAX_BOUNDS[1][1]));
+    const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (flo + fhi) / 2 - (lo + hi) / 2 : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
+    const dx = fix(a.x, b.x, f.left, f.left + f.width), dy = fix(a.y, b.y, f.top, f.top + f.height);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
   },
   fitTo(bounds, animate = true) {
     const f = this.frameRect, sz = map.getSize();
     const pad = L.point(sz.x - f.width * 0.94, sz.y - f.height * 0.94);
     const z = map.getBoundsZoom(bounds, false, pad);
     const zz = Math.min(z, 10);
-    this.updateMaxBounds(zz);
     const pa = map.project(bounds.getSouthWest(), zz), pb = map.project(bounds.getNorthEast(), zz);
     map.setView(map.unproject(pa.add(pb).divideBy(2), zz), zz, { animate });
     // shift if the frame is off-centre (phone dock/sheets, tablet rail)
@@ -727,7 +731,8 @@ for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSh
 mq.phone.addEventListener('change', relayout); mq.tablet.addEventListener('change', relayout);
 
 for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });
-map.on('zoomend', () => { app.renderLabels(); app.updateMaxBounds(); });
+map.on('zoomend', () => app.renderLabels());
+map.on('moveend', () => app.clampToFrame());
 map.on('click', (e) => {
   if (!app.s) return;
   if (Date.now() - (app._selAt || 0) < 100) return; /* the same tap just opened a place sheet */
