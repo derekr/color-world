@@ -273,7 +273,8 @@ body.printing .ft{box-shadow:none!important;border:0!important;background:transp
 body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @media print{
   html,body{background:#fff}
-  html:has(body.printing.print-rot),body.printing.print-rot{height:10.1in;overflow:hidden}
+  body.printing main{left:0.4in;top:0.4in}
+  html:has(body.printing.print-rot),body.printing.print-rot{height:10.9in;overflow:hidden}
   body.printing.print-rot main{width:7.7in;height:10.1in;overflow:hidden}
   body.printing.print-rot #map{transform-origin:0 0;transform:rotate(90deg) translateY(-100%)}
 }

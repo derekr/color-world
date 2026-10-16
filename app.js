@@ -487,7 +487,8 @@ const app = window.app = {
        prints on a portrait sheet with the map turned a quarter turn, which comes out of the printer the same. */
     const rot = eff === 'landscape' && IGNORES_PAGE_SIZE;
     document.body.classList.toggle('print-rot', rot);
-    st.textContent = `@page { size: letter ${rot ? 'portrait' : eff}; margin: 0.4in }`;
+    /* no page margin, so the browser has nowhere to print its date / title / URL headers; the 0.4in inset moves into the print CSS */
+    st.textContent = `@page { size: letter ${rot ? 'portrait' : eff}; margin: 0 }`;
     /* turned, the map is 0.1in short of the sheet so rounding can't spill a blank second page */
     const [pw, ph] = eff === 'landscape' ? [rot ? 10.1 : 10.2, 7.7] : [7.7, 10.2];
     document.body.style.setProperty('--pw', pw + 'in');
