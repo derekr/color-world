@@ -1,0 +1,10 @@
+# Cloudflare Pages response headers. Files here aren't fingerprinted, so caches
+# expire instead of being immutable: fonts rarely change; vendor and data get a
+# week, then refresh in the background. index.html and *.js at the root keep
+# Cloudflare's default (always revalidate) so app updates show up right away.
+/fonts/*
+  Cache-Control: public, max-age=31536000
+/vendor/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/data/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
