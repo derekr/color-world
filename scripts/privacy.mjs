@@ -15,8 +15,8 @@
    - osm.js only accepts /osm/14/<x>/<y>.json, and the shapes it sends carry only a kind and, for streets and public
      places, a name: no addresses, house numbers or building names. Tested against a sample Overpass reply below.
    - Sending a tile request full of identifying headers (IP, cookie, referrer, user agent) through osm.js, with fetch
-     stood in for: what would reach Overpass carries only our content type and user agent, and the cache key is the
-     tile alone. */
+     stood in for: what would reach Overpass carries only our content type and user agent, and the tile is cached
+     publicly by its path alone. */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -58,8 +58,9 @@ for (const key of ['tail_consumers', 'analytics_engine_datasets']) check(!wrangl
 // ---- osm.js behaviour
 const { tileFromUrl, toGeoJSON } = await import(pathToFileURL(join(root, 'osm.js')));
 const u = (p) => new URL('https://color-world.perfectdays.dev' + p);
-check(JSON.stringify(tileFromUrl(u('/osm/14/2621/6331.json'))) === '{"x":2621,"y":6331}', 'osm.js: rejects a valid tile');
-for (const bad of ['/osm/14/2621/6331.json?lat=1', '/osm/15/2621/6331.json', '/osm/14/16384/0.json', '/osm/14/2621/6331.json/x', '/osm/14/-1/0.json', '/osm/14/1.5/0.json', '/osm/14/2621/6331']) {
+check(JSON.stringify(tileFromUrl(u('/osm/14/2621/6331.json'))) === '{"x":2621,"y":6331,"buildings":false}', 'osm.js: rejects a valid tile');
+check(tileFromUrl(u('/osm/14/2621/6331-buildings.json'))?.buildings === true, 'osm.js: rejects a valid buildings tile');
+for (const bad of ['/osm/14/2621/6331.json?lat=1', '/osm/15/2621/6331.json', '/osm/14/16384/0.json', '/osm/14/2621/6331.json/x', '/osm/14/-1/0.json', '/osm/14/1.5/0.json', '/osm/14/2621/6331', '/osm/14/2621/6331-addresses.json']) {
   check(tileFromUrl(u(bad)) === null, `osm.js: accepts ${bad}; only /osm/14/<x>/<y>.json may reach Overpass`);
 }
 
@@ -88,10 +89,9 @@ check(byId.r5?.geometry.type === 'MultiPolygon' && byId.r5.geometry.coordinates[
 check(!byId.n6, 'osm.js: a bare address point must be left out');
 
 // ---- the request osm.js sends: a visitor's request full of identifying headers goes in; what reaches Overpass must
-// carry none of them. fetch and the edge cache are stood in for, so this runs offline.
+// carry none of them. fetch is stood in for, so this runs offline.
 const { osmTile } = await import(pathToFileURL(join(root, 'osm.js')));
-const sent = [], stored = [];
-globalThis.caches = { default: { match: async () => undefined, put: async (k) => void stored.push(k.url) } };
+const sent = [];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
   sent.push({ url: String(url), headers: Object.fromEntries(new Headers(init.headers)), body: String(init.body) });
@@ -101,9 +101,7 @@ const visitor = new Request('https://color-world.perfectdays.dev/osm/14/2621/633
   'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '203.0.113.7', 'true-client-ip': '203.0.113.7',
   cookie: 'id=kid-123', referer: 'https://color-world.perfectdays.dev/?near=42-maple-ave', 'user-agent': 'KidTablet/1.0', 'accept-language': 'en-US',
 } });
-const waits = [];
-const res = await osmTile(visitor, { waitUntil: (p) => waits.push(p) });
-await Promise.all(waits);
+const res = await osmTile(visitor);
 globalThis.fetch = realFetch;
 check(res.status === 200, `osm.js: a valid tile returned ${res.status}`);
 check(!res.headers.has('set-cookie'), 'osm.js: responses must not set cookies');
@@ -112,7 +110,8 @@ const hdrs = sent[0]?.headers || {};
 check(JSON.stringify(Object.keys(hdrs).sort()) === '["content-type","user-agent"]', `osm.js: the Overpass request may only carry content-type and user-agent; it had ${Object.keys(hdrs).join(', ')}`);
 check(hdrs['user-agent']?.startsWith('color-world '), 'osm.js: the Overpass request must carry our user agent, not the visitor\'s');
 check(!/203\.0\.113\.7|kid-123|maple|KidTablet|en-US/i.test(JSON.stringify(sent)), 'osm.js: something from the visitor\'s request reached Overpass');
-check(stored.length === 1 && stored[0] === 'https://color-world.perfectdays.dev/osm/14/2621/6331.json', 'osm.js: the cache key must be the tile and nothing else');
+check(/^public, max-age=\d+/.test(res.headers.get('cache-control') || '') && !res.headers.has('vary'), 'osm.js: tiles must be cached publicly by path alone, so every visitor shares them');
+check(!/\bcaches\b/.test(osm), 'osm.js: use Workers Caching (Cache-Control), not the Cache API');
 
 if (errors.length) {
   console.error(`Privacy check failed (${errors.length}):\n- ` + errors.join('\n- '));

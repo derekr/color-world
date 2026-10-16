@@ -1,7 +1,8 @@
 /* Street data for Neighborhood mode, from OpenStreetMap through Overpass.
 
-   GET /osm/14/<x>/<y>.json returns the streets, water, parks, schools and buildings in one zoom-14 map tile (about
-   2.4 km across at the equator, under 2 km across the US) as GeoJSON.
+   GET /osm/14/<x>/<y>.json returns the streets, water, parks and schools in one zoom-14 map tile (about 2.4 km across
+   at the equator, under 2 km across the US) as GeoJSON, and /osm/14/<x>/<y>-buildings.json its building outlines.
+   Buildings are most of the data in a town and the slowest part for Overpass, so they're only asked for when shown.
 
    Privacy safeguards. PRIVACY.md explains them, and scripts/privacy.mjs fails the build if one goes missing:
    - The browser only talks to this site. The Worker asks Overpass itself, with a request it builds from scratch, so
@@ -12,7 +13,8 @@
    - Each shape keeps a kind and, for streets and public places, a name. House numbers, addresses, building names and
      every other tag are dropped.
    - Nothing is logged: no console calls, Workers Logs and Logpush off in wrangler.jsonc, no cookies set.
-   - Tiles are cached at the edge, so most views never reach Overpass at all.
+   - Tiles are cached by Cloudflare (Workers Caching, "cache" in wrangler.jsonc) for a month and shared by everyone, so
+     most views never reach Overpass at all. Simultaneous requests for the same tile run the Worker once.
 
    Overpass returns each way and relation whole, even where it runs past the tile, so parks and lakes come back as
    closed shapes with no seam at the tile edge. The browser drops the copies it gets from neighbouring tiles by id. */
@@ -21,15 +23,17 @@ export const ZOOM = 14;
 const OVERPASS = 'https://overpass-api.de/api/interpreter';
 const AGENT = 'color-world (https://github.com/derekr/color-world)';
 const TTL = 60 * 60 * 24 * 30; // a month: streets change slowly, and every hit is one less request to Overpass
+const STALE = 60 * 60 * 24 * 7; // after that, serve the old tile at once for a week while a fresh one is fetched
 const MAX_POINTS = 20000; // a shape bigger than this (a coastline, a huge lake) is skipped rather than sent
 
-/* /osm/14/<x>/<y>.json → { x, y }, or null for anything else */
+/* /osm/14/<x>/<y>.json → { x, y, buildings: false }, /osm/14/<x>/<y>-buildings.json → { …, buildings: true },
+   or null for anything else */
 export function tileFromUrl(url) {
   if (url.search) return null;
-  const m = /^\/osm\/14\/(\d{1,5})\/(\d{1,5})\.json$/.exec(url.pathname);
+  const m = /^\/osm\/14\/(\d{1,5})\/(\d{1,5})(-buildings)?\.json$/.exec(url.pathname);
   if (!m) return null;
   const x = +m[1], y = +m[2], n = 2 ** ZOOM;
-  return x < n && y < n ? { x, y } : null;
+  return x < n && y < n ? { x, y, buildings: !!m[3] } : null;
 }
 
 /* The tile's edges in degrees: [south, west, north, east] */
@@ -40,9 +44,10 @@ export function tileBounds({ x, y }) {
   return [lat(y + 1), lon(x), lat(y), lon(x + 1)];
 }
 
-export function query(bounds) {
+export function query(bounds, buildings) {
   const bbox = bounds.map((v) => v.toFixed(6)).join(',');
-  return `[out:json][timeout:60][bbox:${bbox}];
+  if (buildings) return `[out:json][timeout:25][bbox:${bbox}];way[building];out geom qt;`;
+  return `[out:json][timeout:25][bbox:${bbox}];
 (
   way[highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|service|footway|path|cycleway|track|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
   way[railway~"^(rail|light_rail|tram)$"];
@@ -51,7 +56,6 @@ export function query(bounds) {
   nwr[waterway=riverbank];
   nwr[leisure~"^(park|garden|nature_reserve|playground|pitch)$"];
   nwr[amenity~"^(school|library)$"];
-  way[building];
 );
 out geom qt;`;
 }
@@ -162,29 +166,23 @@ export function toGeoJSON(data) {
 const json = (status, body, extra = {}) =>
   new Response(body, { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff', ...extra } });
 
-export async function osmTile(req, ctx) {
-  if (req.method !== 'GET' && req.method !== 'HEAD') return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
-  const url = new URL(req.url);
-  const tile = tileFromUrl(url);
-  if (!tile) return json(404, '{"error":"not a tile"}');
-
-  // Cached by the tile alone: the key is rebuilt from x and y, so nothing else about the request can reach it
-  const key = new Request(`${url.origin}/osm/${ZOOM}/${tile.x}/${tile.y}.json`);
-  const cache = caches.default;
-  const hit = await cache.match(key);
-  if (hit) return hit;
+export async function osmTile(req) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store' } });
+  const tile = tileFromUrl(new URL(req.url));
+  if (!tile) return json(404, '{"error":"not a tile"}', { 'Cache-Control': 'no-store' });
 
   // A brand-new request: none of the visitor's headers are copied onto it
   const up = await fetch(OVERPASS, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': AGENT },
-    body: 'data=' + encodeURIComponent(query(tileBounds(tile))),
+    body: 'data=' + encodeURIComponent(query(tileBounds(tile), tile.buildings)),
   }).catch(() => null);
   const data = up?.ok ? await up.json().catch(() => null) : null;
   if (!data || /error/i.test(data.remark || '')) {
-    return json(503, '{"error":"street data is busy, try again in a minute"}', { 'Retry-After': '60', 'Cache-Control': 'no-store' });
+    // Overpass's own status (429 busy, 504 timed out…) says why; nothing about the visitor is in it
+    const why = up ? (up.ok ? 'query failed' : up.status) : 'unreachable';
+    return json(503, JSON.stringify({ error: 'street data is busy, try again in a minute', overpass: why }), { 'Retry-After': '60', 'Cache-Control': 'no-store' });
   }
-  const res = json(200, JSON.stringify(toGeoJSON(data)), { 'Cache-Control': `public, max-age=${TTL}` });
-  ctx.waitUntil(cache.put(key, res.clone()));
-  return res;
+  // Cached by Cloudflare for everyone (wrangler.jsonc "cache"), keyed by the path alone, which is just the tile
+  return json(200, JSON.stringify(toGeoJSON(data)), { 'Cache-Control': `public, max-age=${TTL}, stale-while-revalidate=${STALE}` });
 }

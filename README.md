@@ -10,7 +10,7 @@ Deploys add one step: the Workers Builds build command is `node scripts/stamp.mj
 
 The site is for kids, so it keeps no logs, sets no cookies and loads nothing from other sites. [PRIVACY.md](PRIVACY.md) lists each promise next to the code that keeps it, and `node scripts/privacy.mjs` checks them. It runs before `scripts/locales.mjs` in wrangler's build, so a deploy fails if one breaks.
 
-`osm.js` serves street data for the coming Neighborhood mode at `/osm/14/<x>/<y>.json`. It asks OpenStreetMap's Overpass service for one zoom-14 tile, sends none of the visitor's headers, keeps only each shape's kind and public name, and caches the result at the edge for a month.
+`osm.js` serves street data for the coming Neighborhood mode at `/osm/14/<x>/<y>.json`. It asks OpenStreetMap's Overpass service for one zoom-14 tile (buildings separately, at `-buildings.json`), sends none of the visitor's headers, and keeps only each shape's kind and public name. Workers Caching (`cache` in wrangler.jsonc) keeps each tile for a month and shares it between visitors.
 
 ## Locales
 

@@ -11,9 +11,9 @@ const GB = 'colour-world.perfectdays.dev';
 const LIVE = [GB, 'color-world.perfectdays.dev'];
 
 export default {
-  fetch(req, env, ctx) {
+  fetch(req, env) {
     const url = new URL(req.url);
-    if (url.pathname.startsWith('/osm/')) return osmTile(req, ctx);
+    if (url.pathname.startsWith('/osm/')) return osmTile(req);
     const serve = (path) => { url.pathname = path; return env.ASSETS.fetch(new Request(url, req)); };
     const [, dir, ...rest] = url.pathname.split('/');
     const page = DIRS.includes(dir) && rest.join('/') === '';

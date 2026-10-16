@@ -19,6 +19,10 @@
   // scripts/privacy.mjs fails the build if either setting changes. See PRIVACY.md.
   "observability": { "enabled": false },
   "logpush": false,
+  // Workers Caching: Cloudflare answers from its cache before running the Worker, following each response's
+  // Cache-Control. Only the /osm/ tiles are cacheable for long (osm.js); pages come from the assets as max-age=0 and
+  // always revalidate. Kept across deploys so a deploy doesn't send every tile back to Overpass.
+  "cache": { "enabled": true, "cross_version_cache": true },
   // Workers Builds runs `wrangler preview` for non-production branches, which needs this block.
   "previews": {}
 }

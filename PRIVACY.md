@@ -25,12 +25,12 @@ Color World is for kids, so it collects as little as it can and this page says e
 
 Street maps come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public Overpass service. Your browser never talks to them:
 
-1. **Only this site is contacted.** Your browser asks `/osm/14/<x>/<y>.json` on this site. (`worker.js`)
+1. **Only this site is contacted.** Your browser asks `/osm/14/<x>/<y>.json` (and `-buildings.json` when building outlines are shown) on this site. (`worker.js`)
 2. **The request to OpenStreetMap is built from scratch.** None of your browser's headers go with it: no IP address, cookies, browser name or the page you came from. Overpass sees Cloudflare's address and our name, never yours. (`osm.js`, `osmTile()`. `scripts/privacy.mjs` sends a request full of identifying headers through it and fails if any of them reach Overpass.)
 3. **Only whole map squares on a fixed grid can be asked for.** A request names a square roughly 2 km across, the same squares for everyone, never a point or an address. Anything else is refused. (`osm.js`, `tileFromUrl()`)
 4. **The question sent to Overpass is fixed.** It always asks for streets, water, parks, schools and buildings in that square. A visitor can't change it. (`osm.js`, `query()`)
 5. **Addresses are thrown away.** Each shape keeps only what kind it is (road, park, building…) and, for streets and public places, its name. House numbers, addresses, phone numbers, building names and all other details are dropped before anything reaches your browser. (`osm.js`, `toGeoJSON()`)
-6. **Squares are shared.** Once anyone has viewed a square, Cloudflare keeps a copy for a month and serves that, so most views never reach OpenStreetMap at all. The copy is stored under the square's number only.
+6. **Squares are shared.** Once anyone has viewed a square, Cloudflare keeps a copy for a month and serves that to everyone, so most views never reach OpenStreetMap at all. The copy is stored under the square's number only.
 7. **Nothing is logged.** The Worker never writes logs, and Workers Logs and Logpush are switched off. (`wrangler.jsonc`. `scripts/privacy.mjs` fails if either is turned on or a `console` call appears.)
 
 ## What we can't promise from code alone
