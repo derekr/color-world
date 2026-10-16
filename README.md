@@ -4,10 +4,12 @@ A kid-friendly map you can turn into an 8.5 × 11 coloring page. Pick a place, t
 
 It is a single static page (`index.html`) using [Leaflet](https://leafletjs.com) for the map and [Datastar + Rocket](https://data-star.dev) signals for the UI. The custom data feature lives in its own module, `datasets.js`, which `index.html` modulepreloads. No build step: serve the folder with any static server, e.g. `python3 -m http.server`.
 
+Deploys add one step: the Workers Builds build command is `node scripts/stamp.mjs --write`, which adds `?v=<content hash>` to every reference to `fonts/`, `vendor/`, `data/`, `app.js` and `datasets.js` and marks those as cacheable for a year (`immutable`). Locally nothing is stamped and the files revalidate as usual. A path built at runtime has to go through `asset()` in app.js; the script fails the build if it finds a reference it couldn't version. Run `node scripts/stamp.mjs` (no `--write`) to check without changing files.
+
 ## Data and libraries
 
 - US states and counties: [us-atlas](https://github.com/topojson/us-atlas) (US Census Bureau)
-- World countries: [world-atlas](https://github.com/topojson/world-atlas) (`world-110m.json` is drawn first for a quick first paint, then `world-50m.json` replaces it); label points, capitals and provinces: [Natural Earth](https://www.naturalearthdata.com) (public domain)
+- World countries: [world-atlas](https://github.com/topojson/world-atlas) (`world-110m.json` is drawn first for a quick first paint; `world-50m.json` replaces it once the browser is idle, or right away on zoom-in or print); label points, capitals and provinces: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - `samples/` holds the example files offered under Add data, made from the data above plus a few hand-placed points (national parks, Route 66, a road trip).
 - Tornado counts in `data/tornadoes.json` are placeholders and need a real source.
 - Vendored (no build step, see `vendor/` and `fonts/`):

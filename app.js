@@ -2,6 +2,11 @@
    Loaded as a module (modulepreloaded by index.html); datasets.js picks up window.app once this has built it. ---------- */
 import { mergePatch, root, rocket } from './vendor/datastar-rocket.js';
 
+/* Deploys stamp each asset URL with ?v=<content hash> so it can be cached for a year (scripts/stamp.mjs). Literal paths
+   are rewritten in place; a path built at runtime has to go through asset(), which reads the manifest the stamp writes
+   into index.html (locally there is none, so it returns the plain path). */
+const asset = (p) => (window.ASSET_V && window.ASSET_V[p] ? `${p}?v=${window.ASSET_V[p]}` : p);
+
 const INK = '#1E1B18';
 const US_BOUNDS = L.latLngBounds([24.3, -125.2], [49.6, -66.6]);
 const MAX_BOUNDS = [[-86, -200], [85, 200]];
@@ -458,7 +463,7 @@ const app = window.app = {
     if (this.busy || this.printing) return;
     this.busy = true; this.setBusy(true);
     try {
-      await this.worldReady; /* print from the detailed 50m outline, not the quick 110m one */
+      await this.loadWorld?.(); /* print from the detailed 50m outline, not the quick 110m one */
       const dl = await this.dlReady;
       const inFrame = window.self !== window.top;
       if (!dl && !inFrame) { await this.nativePrint(); return; }
@@ -567,7 +572,7 @@ map.on('click', (e) => {
 /* ---------- load data ---------- */
 (async () => {
   try {
-    const load = (n, priority = 'auto') => fetch(`data/${n}.json`, { priority }).then((r) => r.json());
+    const load = (n, priority = 'auto') => fetch(asset(`data/${n}.json`), { priority }).then((r) => r.json());
     /* the world outline comes in twice: a light 110m one to draw quickly, then the detailed 50m one (fetched once the rest is in) */
     const [states, labels, caps, torn, world, wlabels, wcaps, prov, cont] = await Promise.all(
       ['states-10m', 'labels', 'capitals', 'tornadoes', 'world-110m', 'world-labels', 'world-capitals', 'world-provinces-50m', 'continents'].map((n) => load(n)));
@@ -669,14 +674,19 @@ map.on('click', (e) => {
     app.applyConts();
     if (app.s) app.sync(app.s);
 
-    /* now the detailed outline: swap it in without touching the open popover or the picked place */
-    app.worldReady = load('world-50m', 'low').then((w50) => {
+    /* the detailed outline (240 KB): fetched once the browser is idle after the first draw, or right away on zoom-in or
+       print, then swapped in without touching the open popover or the picked place */
+    let worldP;
+    app.loadWorld = () => worldP || (worldP = load('world-50m', 'low').then((w50) => {
       fillCountries(useWorld(w50));
       for (const f of app.fills) if (!app.vis.has(f.cont)) app.layers.countries.removeLayer(f.lyr);
       if (app.selected && app.placeLayers[app.selected]) app.placeLayers[app.selected].setStyle({ fillColor: '#FFC93C', fillOpacity: 0.4 });
       app.drawWorldLines();
       if (app.s) app.sync(app.s);
-    }).catch((e) => console.error('detailed world map failed', e));
+    }).catch((e) => { worldP = null; console.error('detailed world map failed', e); }));
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 0));
+    setTimeout(() => idle(() => app.loadWorld(), { timeout: 3000 }), 3000);
+    map.on('zoomend', () => { if (map.getZoom() >= 3) app.loadWorld(); });
   } catch (e) { console.error('data load failed', e); }
   finally { requestAnimationFrame(() => document.getElementById('stage').classList.add('drawn')); }
 })();

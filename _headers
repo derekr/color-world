@@ -1,7 +1,8 @@
-# Cloudflare static asset response headers. Files here aren't fingerprinted, so caches
-# expire instead of being immutable: fonts rarely change; vendor and data get a
-# week, then refresh in the background. index.html and *.js at the root keep
-# Cloudflare's default (always revalidate) so app updates show up right away.
+# Cloudflare static asset response headers. In the repo, files aren't fingerprinted, so caches expire instead of
+# being immutable: fonts rarely change; vendor and data get a week, then refresh in the background. index.html and
+# *.js at the root keep Cloudflare's default (always revalidate) so app updates show up right away.
+# The deploy build (node scripts/stamp.mjs --write) adds ?v=<content hash> to every reference and switches fonts/,
+# vendor/, data/, app.js and datasets.js to a year, immutable.
 /fonts/*
   Cache-Control: public, max-age=31536000
 /vendor/*
