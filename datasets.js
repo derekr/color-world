@@ -1,8 +1,66 @@
-/* ---------- custom datasets (mockup): drop a GeoJSON / TopoJSON / CSV file, we guess how to draw it ---------- */
+/* ---------- My data: drop a GeoJSON / TopoJSON / CSV file on the map and we guess how to draw it in coloring-page style.
+   Loaded as its own module (modulepreloaded by index.html); it brings its own CSS and the drop zone + sheet elements,
+   and keeps added datasets in IndexedDB so they survive a reload. ---------- */
 import { mergePatch, root } from './vendor/datastar-rocket.js';
 const patch = (o) => mergePatch(o);
 const app = await new Promise((r) => { const t = () => (window.app ? r(window.app) : setTimeout(t, 40)); t(); });
 const map = app.map;
+
+const style = document.createElement('style');
+style.textContent = `.drop{position:absolute;inset:14px;z-index:1400;display:none;align-items:center;justify-content:center;border:4px dashed var(--ink);border-radius:28px;background:rgba(255,251,242,.92);pointer-events:none}
+.drop.on{display:flex}
+.drop-in{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 34px;border:2px solid var(--ink);border-radius:26px;background:#fff;box-shadow:0 5px 0 var(--ink);text-align:center;animation:bob 1s ease-in-out infinite alternate}
+.drop-in b{font-size:28px;font-weight:800}
+.drop-in span{font-size:16px;font-weight:600;color:var(--muted);max-width:300px}
+@keyframes bob{to{transform:translateY(-6px)}}
+.tile.add{border-style:dashed;box-shadow:none;background:var(--paper)}
+.tw .gear{position:absolute;top:4px;left:4px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;padding:0;border:2px solid var(--ink);border-radius:9px;background:#fff;cursor:pointer}
+.tw .gear svg{width:14px;height:14px}
+.tile .kind{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);display:none}
+.tile.new{animation:pop .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:none}}
+.my-empty{grid-column:1/-1;margin:2px 2px 0;font-size:14px;font-weight:600;color:var(--muted);line-height:1.3}
+.samples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.samples .tile{aspect-ratio:auto;height:78px;--ic:30px;--tnh:24px;--tnf:12px;padding:4px 3px 4px}
+.sub-note{margin:4px 2px 12px;font-size:15px;font-weight:600;color:var(--muted);line-height:1.3}
+.sub-h{margin:14px 2px 8px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pickbtn{width:100%;background:var(--accent)}
+/* the "add to map" sheet */
+.ds{position:fixed;z-index:1150;top:86px;left:20px;width:298px;max-height:calc(100vh - 106px);max-height:calc(100dvh - 106px);overflow:auto;padding:16px;border:2px solid var(--ink);border-radius:22px;background:#fff;box-shadow:0 5px 0 var(--ink);display:none;flex-direction:column;gap:10px}
+.ds.on{display:flex}
+.ds-head{display:flex;align-items:center;gap:10px}
+.ds-head .ic{flex:none;width:52px;height:52px;border:2px solid var(--ink);border-radius:14px;background:var(--paper);padding:3px}
+.ds-head .field{font-size:20px;font-weight:800;height:44px;padding:0 10px}
+.ds-found{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:1px 10px 0;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font-size:14px;font-weight:700}
+.chip svg{width:16px;height:16px}
+.ds-why{margin:-2px 2px 0;font-size:13.5px;font-weight:600;color:var(--muted);line-height:1.3}
+.ds-sec{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:2px dashed var(--track)}
+.ds-sec>label,.ds-sec>.lab{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ds .seg button{min-width:0;min-height:40px;padding:0 2px;font-size:13px;flex-direction:column;gap:0}
+.ds .seg button svg{width:22px;height:22px}
+.ds select.field{height:42px;font-size:16px;padding:0 10px}
+.ds .toggle{min-height:40px;font-size:16px}
+.ds-acts{display:flex;gap:8px;padding-top:4px}
+.ds-acts .btn{flex:1;height:46px;padding:0 10px;font-size:16px;white-space:nowrap}
+.ds-acts .go{background:var(--accent)}
+.ds-acts .del{flex:0 0 auto;padding:0 12px}
+.ds-err{padding:10px 12px;border:2px solid var(--ink);border-radius:14px;background:#FFE3DA;font-size:15px;font-weight:700;line-height:1.3}
+/* how custom data draws on the map */
+.dmk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;display:block}
+.dmk.pin{transform:translate(-50%,-100%)}
+.dnum{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:22px;height:22px;border:2px solid var(--ink);border-radius:50%;background:#fff;font-size:12px;font-weight:800;line-height:1;padding-top:1px}
+.dl{position:absolute;left:0;top:0;transform:translate(11px,-50%);white-space:nowrap;line-height:1;pointer-events:none}
+.dl.c{transform:translate(-50%,-50%)}
+.dl.big .nm{font-size:15px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.hollow .dl.big .nm{font-size:17px}
+@media (max-width:699px), (max-width:1099px) and (max-height:499px){
+  .ds{left:0;right:0;top:auto;bottom:0;width:auto;max-height:75dvh;border:0;border-top:2px solid var(--ink);border-radius:28px 28px 0 0;box-shadow:none;z-index:1260;padding:14px 20px calc(20px + env(safe-area-inset-bottom))}
+  .samples{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+body.printing .drop,body.printing .ds{display:none!important}
+`;
+document.head.appendChild(style);
 const INK = '#1E1B18';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const CK = '<svg class="ck" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="#1E1B18"/><path d="M6 11.5l3.5 3.5L16 8" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -179,8 +237,18 @@ function iconSvg(features, info) {
     (dots ? `<g fill="#fff" stroke-width="1.5">${dots}</g>` : '') + '</g></svg>';
 }
 
-/* ---------- 4. datasets list, tiles on the "My data" page ---------- */
+/* ---------- 4. datasets list, tiles on the "My data" page, saved in IndexedDB ---------- */
 const sets = [];
+const db = new Promise((res) => {
+  try {
+    const rq = indexedDB.open('coloring-map', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('datasets', { keyPath: 'key' });
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => res(null);
+  } catch (e) { res(null); }
+});
+const store = async (mode, fn) => { const d = await db; if (!d) return null; try { const tx = d.transaction('datasets', mode); const r = fn(tx.objectStore('datasets')); return await new Promise((ok) => { tx.oncomplete = () => ok(r && r.result); tx.onerror = tx.onabort = () => ok(null); }); } catch (e) { return null; } };
+const save = (set) => store('readwrite', (os) => os.put({ key: set.key, text: set.text, fname: set.fname, cfg: set.cfg, on: set.on }));
+const forget = (set) => store('readwrite', (os) => os.delete(set.key));
 let uid = 0;
 const page = document.getElementById('myData');
 function drawTiles(fresh) {
@@ -189,13 +257,18 @@ function drawTiles(fresh) {
   for (const set of sets) {
     const w = document.createElement('div'); w.className = 'tw'; w.style.position = 'relative';
     w.innerHTML = `<button class="tile${set === fresh ? ' new' : ''}" style="width:100%" aria-pressed="${set.on}">${iconSvg(set.features, set.info)}<span class="tn">${esc(set.cfg.name)}</span>${set.on ? CK : ''}</button><button class="gear" aria-label="Change ${esc(set.cfg.name)}">${GEAR}</button>`;
-    w.firstChild.addEventListener('click', () => { set.on = !set.on; set.on ? set.layer.addTo(map) : set.layer.remove(); drawTiles(); });
+    w.firstChild.addEventListener('click', () => { set.on = !set.on; set.on ? set.layer.addTo(map) : set.layer.remove(); drawTiles(); save(set); });
     w.lastChild.addEventListener('click', (e) => { e.stopPropagation(); openSheet(set, false); });
     page.appendChild(w);
   }
 }
 
 /* ---------- 5. the "add to map" sheet: shows what we found and lets you change our guesses ---------- */
+const stage = document.getElementById('stage');
+stage.insertAdjacentHTML('beforeend', `<div class="drop" id="dropZone" aria-hidden="true"><div class="drop-in">
+  <svg width="64" height="64" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h17l9 9v27H12z" fill="#FFC93C"/><path d="M29 6v9h9"/><path d="M25 21v14M19 29l6 6 6-6" stroke-width="3"/></g></svg>
+  <b>Drop it on the map!</b><span>We'll draw your places, lines and areas in coloring-page style.</span></div></div>
+<div class="ds" id="dsSheet" role="dialog" aria-label="Your data"></div>`);
 const sheet = document.getElementById('dsSheet');
 const seg = (name, val, opts) => `<div class="seg" role="group" data-k="${name}">${opts.map(([v, label, ic]) => `<button type="button" data-v="${v}" aria-pressed="${v === val}">${ic || ''}${label}</button>`).join('')}</div>`;
 const IC = {
@@ -239,9 +312,9 @@ sheet.addEventListener('click', (e) => {
   if (!set) return;
   if (b.parentElement.classList.contains('seg')) { set.cfg[b.parentElement.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b)); render(set); }
   else if (b.dataset.k === 'labels') { set.cfg.labels = !set.cfg.labels; b.setAttribute('aria-pressed', set.cfg.labels); const sel = sheet.querySelector('select'); if (sel) sel.style.display = set.cfg.labels ? '' : 'none'; render(set); }
-  else if (act === 'cancel' || act === 'remove') { set.layer.remove(); sets.splice(sets.indexOf(set), 1); drawTiles(); closeSheet(); }
-  else if (act === 'add') { closeSheet(); drawTiles(set); patch({ featPage: 2, featView: '' }); }
-  else if (act === 'done') { closeSheet(); drawTiles(); }
+  else if (act === 'cancel' || act === 'remove') { set.layer.remove(); sets.splice(sets.indexOf(set), 1); drawTiles(); closeSheet(); forget(set); }
+  else if (act === 'add') { closeSheet(); drawTiles(set); save(set); patch({ featPage: 2, featView: '' }); }
+  else if (act === 'done') { closeSheet(); drawTiles(); save(set); }
   else if (act === 'zoom') { app.userMoved = true; app.fitTo(set.info.bounds); }
 });
 sheet.addEventListener('input', (e) => {
@@ -253,13 +326,14 @@ sheet.addEventListener('input', (e) => {
 sheet.addEventListener('change', (e) => { if (current && e.target.dataset.k === 'labelKey') { current.cfg.labelKey = e.target.value; render(current); } });
 
 /* ---------- 6. getting a file in: drop anywhere, pick a file, or try a sample ---------- */
-async function addText(text, fname) {
+async function addText(text, fname, saved) {
   let r, info;
   try { r = readFile(text, fname); info = analyze(r.features, fname, r.title); }
-  catch (e) { showError(e.message, fname); return; }
-  const set = { id: ++uid, features: r.features, info, cfg: info.cfg, on: true, layer: null };
+  catch (e) { if (!saved) showError(e.message, fname); return; }
+  const set = { id: ++uid, key: saved ? saved.key : Date.now() + '-' + uid, text, fname, features: r.features, info, cfg: saved ? { ...info.cfg, ...saved.cfg } : info.cfg, on: saved ? saved.on : true, layer: null };
   sets.push(set);
   render(set);
+  if (saved) return;
   app.userMoved = true; app.fitTo(info.bounds);
   openSheet(set, true);
 }
@@ -277,7 +351,8 @@ document.getElementById('dsPick').addEventListener('click', () => picker.click()
 
 const SAMPLES = [['national-parks.geojson', 'National parks'], ['route-66.geojson', 'Route 66'], ['us-regions.geojson', 'US regions'], ['road-trip.geojson', 'Road trip'], ['state-capitals.csv', 'State capitals (CSV)'], ['world-capitals.geojson', 'World capitals']];
 const sampleBox = document.getElementById('dsSamples');
-for (const [file, label] of SAMPLES) {
+let samplesLoaded = false;
+const loadSamples = () => { if (samplesLoaded) return; samplesLoaded = true; for (const [file, label] of SAMPLES) {
   const b = document.createElement('button'); b.className = 'tile'; b.type = 'button';
   b.innerHTML = `<svg class="ic" viewBox="0 0 48 48"></svg><span class="tn">${esc(label)}</span>`;
   sampleBox.appendChild(b);
@@ -286,6 +361,13 @@ for (const [file, label] of SAMPLES) {
     try { const r = readFile(text, file), info = analyze(r.features, file, r.title); b.querySelector('.ic').outerHTML = iconSvg(r.features, info); } catch (e) { /* icon stays blank */ }
   });
   b.addEventListener('click', async () => addText(b._text || await (await fetch('samples/' + file)).text(), file));
-}
+} };
+/* samples are only fetched once someone opens Add data */
+document.querySelector('.tile.add').addEventListener('pointerdown', loadSamples, { once: true });
+document.querySelector('.tile.add').addEventListener('click', loadSamples, { once: true });
+
+/* bring back what was added last time */
+const kept = (await store('readonly', (os) => os.getAll())) || [];
+kept.sort((a, b) => (a.key < b.key ? -1 : 1));
+for (const k of kept) await addText(k.text, k.fname, k);
 drawTiles();
-window.datasets = { sets, addText };
