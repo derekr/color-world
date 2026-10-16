@@ -162,7 +162,8 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .tools .btn{box-shadow:none;border-radius:14px}
 .pageseg{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:1000;box-shadow:0 3px 0 var(--ink)}
 .zoom{position:absolute;right:20px;bottom:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
-.frame{position:absolute;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:left .3s,top .3s,width .3s,height .3s,opacity .2s ease-out}
+.frame{position:absolute;left:0;top:0;z-index:500;border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:transform .3s,width .3s,height .3s,opacity .2s ease-out}
+/* app.js moves the frame with transform, not left/top: its 4000px shade covers the whole stage, so any left/top move counted as a near-full-screen layout shift (CLS) */
 #stage:not(.framed) .frame{opacity:0}
 .frame:not(.ready){visibility:hidden;transition:none} /* app.js places it, then adds .ready: no slide-in from 0,0 on load */
 @media (prefers-reduced-motion:reduce){#map,#map .leaflet-map-pane,.frame{transition:none}}

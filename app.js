@@ -176,7 +176,7 @@ const app = window.app = {
     const left = ins.left + (maxW - w) / 2, t = top + (maxH - h) / 2;
     this.frameRect = { left, top: t, width: w, height: h };
     const f = document.getElementById('frame');
-    Object.assign(f.style, { left: left + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
+    Object.assign(f.style, { transform: `translate(${left}px,${t}px)`, width: w + 'px', height: h + 'px' }); // transform, so moves aren't layout shifts (see .frame)
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(eff) });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
