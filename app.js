@@ -180,8 +180,12 @@ const app = window.app = {
     const auto = this.s && this.s.orient === 'auto';
     patch({ frameTag: (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(eff) });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
-    map.setMinZoom(Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, this.boundsZoom(FULL_BOUNDS, pad0) - 0.35));
+    const zmin = Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, this.boundsZoom(FULL_BOUNDS, pad0) - 0.35);
     this.updateMaxBounds();
+    /* a minimum above the current zoom makes Leaflet start an animated zoom up to it, which lands after (and undoes) the refit:
+       a window that grows a lot at once (maximized, or a resize that settles) ended up with the map small in a corner */
+    if (map.getZoom() < zmin) map.setZoom(zmin, { animate: false });
+    map.setMinZoom(zmin);
     if (refit) this.fitTo(this.visBounds(), false); else this.clampToFrame();
   },
   /* what the view should fit: the usual world frame when all the main continents are on, else the union of the visible ones */
