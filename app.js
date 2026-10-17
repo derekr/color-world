@@ -142,16 +142,15 @@ const app = window.app = {
   layers: {}, fills: [], vis: new Set(CONTS.map((c) => c[0])), contMarkers: [], oceanMarkers: [],
 
   /* ---------- layout / frame ---------- */
-  effOrient() {
+  effOrient(sz = map.getSize()) {
     const o = this.s ? this.s.orient : 'auto';
     if (o !== 'auto') return o;
-    const sz = map.getSize();
     return sz.x > sz.y ? 'landscape' : 'portrait';
   },
   /* room kept clear around the print frame: depends on the layout (phone bar/dock/sheets, tablet rail, desktop) */
   insets(sz) {
     const d = { top: 56, bottom: 84, left: 24, right: 24 };
-    const mr = document.getElementById('map').getBoundingClientRect();
+    const mr = document.getElementById('stage').getBoundingClientRect(); /* not #map: it's scaled while a resize settles */
     if (mq.phone.matches) {
       const h = document.querySelector('header').getBoundingClientRect();
       d.top = Math.max(0, h.bottom - mr.top) + (matchMedia('(max-height:499px)').matches ? 12 : 46); d.left = d.right = 16;
@@ -165,20 +164,26 @@ const app = window.app = {
     } else if (mq.tablet.matches) d.left = 116;
     return d;
   },
-  layoutFrame(refit) {
-    const sz = map.getSize();
-    const eff = this.effOrient();
+  /* the frame's box for a stage of size sz: the 8.5 x 11 page, as big as fits inside the insets */
+  frameFor(sz) {
+    const eff = this.effOrient(sz);
     const r = eff === 'landscape' ? 11 / 8.5 : 8.5 / 11;
     const ins = this.insets(sz), top = ins.top;
     const maxW = Math.max(120, sz.x - ins.left - ins.right), maxH = Math.max(120, sz.y - top - ins.bottom);
     let w = maxW, h = w / r;
     if (h > maxH) { h = maxH; w = h * r; }
-    const left = ins.left + (maxW - w) / 2, t = top + (maxH - h) / 2;
-    this.frameRect = { left, top: t, width: w, height: h };
-    const f = document.getElementById('frame');
-    Object.assign(f.style, { transform: `translate(${left}px,${t}px)`, width: w + 'px', height: h + 'px' }); // transform, so moves aren't layout shifts (see .frame)
-    const auto = this.s && this.s.orient === 'auto';
-    patch({ frameTag: (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(eff) });
+    return { left: ins.left + (maxW - w) / 2, top: top + (maxH - h) / 2, width: w, height: h, eff };
+  },
+  placeFrame(f) {
+    Object.assign(document.getElementById('frame').style, { transform: `translate(${f.left}px,${f.top}px)`, width: f.width + 'px', height: f.height + 'px' }); // transform, so moves aren't layout shifts (see .frame)
+    const auto = this.s && this.s.orient === 'auto', tag = (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(f.eff);
+    if (root.frameTag !== tag) patch({ frameTag: tag });
+  },
+  layoutFrame(refit) {
+    const sz = map.getSize();
+    const { eff, ...rect } = this.frameFor(sz), w = rect.width, h = rect.height;
+    this.frameRect = rect;
+    this.placeFrame({ ...rect, eff });
     const pad0 = L.point(sz.x - w * 0.94, sz.y - h * 0.94);
     const zmin = Math.max(mq.phone.matches || mq.tablet.matches ? -1 : 0.5, this.boundsZoom(FULL_BOUNDS, pad0) - 0.35);
     this.updateMaxBounds();
@@ -731,11 +736,23 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { app.closePop(); patch({ panel: '' }); }
 });
 const relayout = () => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); };
-/* refitting redraws every outline, so a burst of resizes (dragging the window edge) runs one relayout at the start and one once it settles */
-let rlTimer = 0, rlPending = false;
+/* Refitting redraws every outline, so while a resize is under way (dragging the window edge, a sheet opening) the frame moves
+   at once but the drawn map is only scaled and shifted with a CSS transform to keep its place in the frame, which the compositor
+   handles. The real relayout runs once, 150ms after the last resize. */
+const stageEl = document.getElementById('stage'), mapEl = document.getElementById('map');
+let rlTimer = 0, from = null;
+const settle = () => { rlTimer = 0; from = null; mapEl.style.transform = ''; stageEl.classList.remove('resizing'); relayout(); };
 const relayoutSoon = () => {
-  if (rlTimer) { clearTimeout(rlTimer); rlPending = true; } else relayout();
-  rlTimer = setTimeout(() => { rlTimer = 0; if (rlPending) { rlPending = false; relayout(); } }, 150);
+  if (app.printing || !app.frameRect) return;
+  if (!from) { from = { f: app.frameRect, sz: map.getSize(), refit: !app.userMoved }; stageEl.classList.add('resizing'); }
+  const sz = L.point(stageEl.clientWidth, stageEl.clientHeight), f = app.frameFor(sz), o = from.f;
+  app.placeFrame(f);
+  if (from.refit) { /* the fit is proportional to the frame, so scale the old view about the old frame's centre onto the new one */
+    const k = Math.min(f.width / o.width, f.height / o.height);
+    const tx = f.left + f.width / 2 - k * (o.left + o.width / 2), ty = f.top + f.height / 2 - k * (o.top + o.height / 2);
+    mapEl.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+  } else mapEl.style.transform = `translate(${(sz.x - from.sz.x) / 2}px,${(sz.y - from.sz.y) / 2}px)`; /* invalidateSize keeps the centre */
+  clearTimeout(rlTimer); rlTimer = setTimeout(settle, 150);
 };
 const ro = new ResizeObserver(relayoutSoon);
 /* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
