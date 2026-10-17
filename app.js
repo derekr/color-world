@@ -147,35 +147,32 @@ const app = window.app = {
     if (o !== 'auto') return o;
     return sz.x > sz.y ? 'landscape' : 'portrait';
   },
-  /* room kept clear around the print frame: depends on the layout (phone bar/dock/sheets, tablet rail, desktop) */
-  insets(sz) {
-    const d = { top: 56, bottom: 84, left: 24, right: 24 };
-    const mr = document.getElementById('stage').getBoundingClientRect(); /* not #map: it's scaled while a resize settles */
+  /* The frame's box for a stage of size sz. CSS lays the frame out (see .page-area): the page area is the room around it, and the
+     frame is the biggest 8.5 x 11 page that fits in it, centred. This repeats that fit from the area's box rather than reading the
+     frame's own, which is mid-transition after an orientation change. */
+  frameFor(sz) {
+    this.measureBelow();
+    const eff = this.effOrient(sz), r = eff === 'landscape' ? 11 / 8.5 : 8.5 / 11;
+    const st = document.getElementById('stage').getBoundingClientRect(), a = document.querySelector('.page-area').getBoundingClientRect();
+    const aw = Math.max(120, a.width), ah = Math.max(120, a.height), w = Math.min(aw, ah * r), h = w / r;
+    return { left: a.left - st.left + (aw - w) / 2, top: a.top - st.top + (ah - h) / 2, width: w, height: h, eff };
+  },
+  /* Phones: how much of the stage's bottom is taken (--below, see .page-area). An open card sits in the sidebar, outside the stage, so
+     it can't be an anchor; without anchor positioning the dock, orientation control and place sheet are measured here too. */
+  measureBelow() {
+    const st = document.getElementById('stage');
+    let below = 0;
     if (mq.phone.matches) {
-      const h = document.querySelector('header').getBoundingClientRect();
-      d.top = Math.max(0, h.bottom - mr.top) + (matchMedia('(max-height:499px)').matches ? 12 : 46); d.left = d.right = 16;
-      let bt = sz.y;
-      for (const el of document.querySelectorAll('#dock,#orientSeg,.card.open,#placeSheet')) {
+      const sel = CSS.supports('anchor-name', '--a') ? '.card.open' : '.card.open,#dock,#orientSeg,#placeSheet', sb = st.getBoundingClientRect().bottom;
+      for (const el of document.querySelectorAll(sel)) {
         if (el.id === 'orientSeg' && matchMedia('(max-height:499px)').matches) continue; // sits in the top bar when sideways
         const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) bt = Math.min(bt, r.top - mr.top);
+        if (r.width > 0 && r.height > 0) below = Math.max(below, sb - r.top);
       }
-      d.bottom = Math.max(0, sz.y - bt) + 14;
-    } else if (mq.tablet.matches) d.left = 116;
-    return d;
-  },
-  /* the frame's box for a stage of size sz: the 8.5 x 11 page, as big as fits inside the insets */
-  frameFor(sz) {
-    const eff = this.effOrient(sz);
-    const r = eff === 'landscape' ? 11 / 8.5 : 8.5 / 11;
-    const ins = this.insets(sz), top = ins.top;
-    const maxW = Math.max(120, sz.x - ins.left - ins.right), maxH = Math.max(120, sz.y - top - ins.bottom);
-    let w = maxW, h = w / r;
-    if (h > maxH) { h = maxH; w = h * r; }
-    return { left: ins.left + (maxW - w) / 2, top: top + (maxH - h) / 2, width: w, height: h, eff };
+    }
+    if (st.style.getPropertyValue('--below') !== below + 'px') st.style.setProperty('--below', below + 'px'); /* restyles the whole stage */
   },
   placeFrame(f) {
-    Object.assign(document.getElementById('frame').style, { transform: `translate(${f.left}px,${f.top}px)`, width: f.width + 'px', height: f.height + 'px' }); // transform, so moves aren't layout shifts (see .frame)
     const auto = this.s && this.s.orient === 'auto', tag = (auto ? i18n('Auto') : '8.5 × 11') + ' · ' + i18n(f.eff);
     if (root.frameTag !== tag) patch({ frameTag: tag });
   },
@@ -488,6 +485,7 @@ const app = window.app = {
   /* ---------- print ---------- */
   preparePrint() {
     if (this.printing) return;
+    if (this.flushResize) this.flushResize(); /* a resize still settling: finish it, so its scaled preview can't leak into the print */
     this.printing = true;
     const eff = this.effOrient();
     this.saved = { center: map.getCenter(), zoom: map.getZoom(), sel: this.selected, minZoom: map.getMinZoom() };
@@ -754,6 +752,7 @@ const relayoutSoon = () => {
   } else mapEl.style.transform = `translate(${(sz.x - from.sz.x) / 2}px,${(sz.y - from.sz.y) / 2}px)`; /* invalidateSize keeps the centre */
   clearTimeout(rlTimer); rlTimer = setTimeout(settle, 150);
 };
+app.flushResize = () => { if (rlTimer) { clearTimeout(rlTimer); settle(); } };
 const ro = new ResizeObserver(relayoutSoon);
 /* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
 for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el);
@@ -909,6 +908,5 @@ app.layoutFrame(true);
 requestAnimationFrame(() => {
   map.invalidateSize({ animate: false }); app.layoutFrame(true);
   if (shared && shared.at) app.showShared(shared.at);
-  const f = document.getElementById('frame'); f.offsetWidth; f.classList.add('ready'); /* show it in place, transitions on from here */
   document.getElementById('stage').classList.add('framed'); /* the empty white page fades in; the outlines follow with .drawn */
 });
