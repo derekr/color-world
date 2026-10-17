@@ -66,7 +66,8 @@ header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 20px;
 .work{display:flex;flex-wrap:wrap;flex:1;min-height:0}
 aside{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column;gap:16px;padding:20px;border-right:2px solid var(--ink);background:var(--paper)}
 main{flex:999 1 560px;min-width:0;position:relative;overflow:hidden;height:calc(100vh - 68px);background:#F6F1E8} /* the frame shade over white, so the stage matches the map's surroundings before it fades in */
-#map{position:absolute;inset:0;background:#fff;font-family:inherit;transform-origin:0 0}
+#map{position:absolute;inset:0;background:#fff;font-family:inherit}
+#map .leaflet-map-pane{transform-origin:0 0} /* scaled about the map's corner while a resize settles (app.js) */
 /* load order: the stage tint, then the blank white page in its frame (.framed, once app.js has placed the frame),
    then the outlines (.drawn, once the data is on the map) */
 #map{background:transparent;transition:background-color .2s ease-out}#stage.framed #map{background:#fff}
@@ -171,12 +172,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .frame{--r:calc(11 / 8.5);--aw:max(120px,100cqw);--ah:max(120px,100cqh); /* never smaller than 120px a side, even with a sheet open */
   position:absolute;left:0;top:0;box-sizing:border-box;width:min(var(--aw),var(--ah) * var(--r));aspect-ratio:var(--r);
   transform:translate(calc((var(--aw) - min(var(--aw),var(--ah) * var(--r))) / 2),calc((var(--ah) - min(var(--ah),var(--aw) / var(--r))) / 2));
-  border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:transform .3s,width .3s,opacity .2s ease-out}
+  border:2.5px dashed var(--ink);border-radius:6px;box-shadow:0 0 0 4000px rgba(244,238,226,.8);pointer-events:none;transition:opacity .2s ease-out}
+#stage.orienting .frame{transition:transform .3s,width .3s,opacity .2s ease-out} /* slides only when the page orientation is switched: on a resize it tracks the map */
 #stage[data-orient=portrait] .frame{--r:calc(8.5 / 11)}
 @container stage (orientation:portrait){#stage[data-orient=auto] .frame{--r:calc(8.5 / 11)}}
 #stage:not(.framed) .frame{opacity:0}
-#stage.resizing .frame{transition:none} /* tracks the scaled map while a resize is under way */
-#stage.resizing #map{will-change:transform} /* keep the scaled map on its own layer instead of repainting it every frame */
+#stage.resizing #map .leaflet-map-pane{will-change:translate,scale} /* keep the scaled map on its own layer instead of repainting it every frame */
 @media (prefers-reduced-motion:reduce){#map,#map .leaflet-map-pane,.frame{transition:none}}
 #shareBtn{background:#fff}
 .toast{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:1400;padding:8px 18px 6px;border:2px solid var(--ink);border-radius:999px;background:var(--accent);box-shadow:0 3px 0 var(--ink);font-size:17px;font-weight:800;white-space:nowrap;pointer-events:none}

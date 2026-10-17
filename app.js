@@ -224,13 +224,17 @@ const app = window.app = {
     map.setMaxBounds(null);
   },
   clampToFrame() {
-    if (this.printing || !this.frameRect) return;
-    // keep the visible continents and the frame overlapping: smaller land can roam inside the frame, bigger land must cover it
-    const f = this.frameRect, box = this.pxBox(this.visBounds(), map.getZoom()), off = map.getPixelOrigin().subtract(map._getMapPanePos());
+    if (this.printing || !this.frameRect || this.sizing) return;
+    const [dx, dy] = this.clampDelta(this.frameRect);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
+  },
+  /* how far the map must move to keep the visible continents and frame f overlapping (smaller land can roam inside the frame, bigger
+     land must cover it), with the map first shifted by `by` pixels */
+  clampDelta(f, by = [0, 0]) {
+    const box = this.pxBox(this.visBounds(), map.getZoom()), off = map.getPixelOrigin().subtract(map._getMapPanePos()).subtract(by);
     const a = box.min.subtract(off), b = box.max.subtract(off);
     const fix = (lo, hi, flo, fhi) => (hi - lo <= fhi - flo) ? (lo < flo ? flo - lo : hi > fhi ? fhi - hi : 0) : lo > flo ? flo - lo : hi < fhi ? fhi - hi : 0;
-    const dx = fix(a.x, b.x, f.left, f.left + f.width), dy = fix(a.y, b.y, f.top, f.top + f.height);
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([-dx, -dy], { animate: false });
+    return [fix(a.x, b.x, f.left, f.left + f.width), fix(a.y, b.y, f.top, f.top + f.height)];
   },
   fitTo(bounds, animate = true) {
     const f = this.frameRect, sz = map.getSize();
@@ -289,6 +293,10 @@ const app = window.app = {
       for (const k of ['borders', 'provinces', 'stateMesh', 'coast', 'nation']) if (map.hasLayer(L_[k])) L_[k].bringToFront();
     }
     if ((SHAPES[s.proj] || SHAPES.flat) !== map.options.crs) this.setProjection(s.proj);
+    if (prev && prev.orient !== s.orient) { /* let the frame slide to the new orientation */
+      const st = document.getElementById('stage'); st.classList.add('orienting');
+      clearTimeout(this._orientT); this._orientT = setTimeout(() => st.classList.remove('orienting'), 400);
+    }
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
     else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds(), false); }
     this.renderLabels();
@@ -733,29 +741,47 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); app.print(); }
   if (e.key === 'Escape') { app.closePop(); patch({ panel: '' }); }
 });
-const relayout = () => { if (app.printing) return; map.invalidateSize({ animate: false }); app.layoutFrame(!app.userMoved); };
+const relayout = () => {
+  if (app.printing) return;
+  app.sizing = true; /* invalidateSize ends with a moveend: don't clamp to the old frame there, layoutFrame clamps to the new one */
+  map.invalidateSize({ animate: false });
+  app.sizing = false;
+  app.layoutFrame(!app.userMoved);
+};
 /* Refitting redraws every outline, so while a resize is under way (dragging the window edge, a sheet opening) the frame moves
-   at once but the drawn map is only scaled and shifted with a CSS transform to keep its place in the frame, which the compositor
+   at once but the drawn map is only scaled and shifted with CSS to keep its place in the frame, which the compositor
    handles. The real relayout runs once, 150ms after the last resize. */
-const stageEl = document.getElementById('stage'), mapEl = document.getElementById('map');
+/* The map's pane is moved with the individual translate and scale properties, which compose with the transform Leaflet keeps on it;
+   the map element itself keeps the stage's size, so its white page stays under the whole frame. */
+const stageEl = document.getElementById('stage'), pane = map.getPane('mapPane');
 let rlTimer = 0, from = null;
-const settle = () => { rlTimer = 0; from = null; mapEl.style.transform = ''; stageEl.classList.remove('resizing'); relayout(); };
+const settle = () => {
+  rlTimer = 0; from = null; stageEl.classList.remove('resizing');
+  Object.assign(pane.style, { translate: '', scale: '' });
+  relayout();
+};
 const relayoutSoon = () => {
   if (app.printing || !app.frameRect) return;
-  if (!from) { from = { f: app.frameRect, sz: map.getSize(), refit: !app.userMoved }; stageEl.classList.add('resizing'); }
+  if (!from) {
+    from = { f: app.frameRect, sz: map.getSize(), refit: !app.userMoved };
+    stageEl.classList.add('resizing');
+  }
   const sz = L.point(stageEl.clientWidth, stageEl.clientHeight), f = app.frameFor(sz), o = from.f;
   app.placeFrame(f);
   if (from.refit) { /* the fit is proportional to the frame, so scale the old view about the old frame's centre onto the new one */
     const k = Math.min(f.width / o.width, f.height / o.height);
     const tx = f.left + f.width / 2 - k * (o.left + o.width / 2), ty = f.top + f.height / 2 - k * (o.top + o.height / 2);
-    mapEl.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
-  } else mapEl.style.transform = `translate(${(sz.x - from.sz.x) / 2}px,${(sz.y - from.sz.y) / 2}px)`; /* invalidateSize keeps the centre */
+    Object.assign(pane.style, { translate: `${tx}px ${ty}px`, scale: String(k) });
+  } else { /* invalidateSize keeps the centre, then clampToFrame keeps land in the frame */
+    const by = [(sz.x - from.sz.x) / 2, (sz.y - from.sz.y) / 2], [dx, dy] = app.clampDelta(f, by);
+    pane.style.translate = `${by[0] + dx}px ${by[1] + dy}px`;
+  }
   clearTimeout(rlTimer); rlTimer = setTimeout(settle, 150);
 };
 app.flushResize = () => { if (rlTimer) { clearTimeout(rlTimer); settle(); } };
 const ro = new ResizeObserver(relayoutSoon);
 /* the frame also avoids the phone dock, orientation control and open sheets, so watch them too */
-for (const el of document.querySelectorAll('#map,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el);
+for (const el of document.querySelectorAll('#stage,#dock,#orientSeg,.card,#placeSheet')) ro.observe(el); /* #stage, not #map: #map is pinned while a resize settles */
 mq.phone.addEventListener('change', relayoutSoon); mq.tablet.addEventListener('change', relayoutSoon);
 
 for (const ev of ['pointerdown','wheel']) document.getElementById('stage').addEventListener(ev, () => { app.userMoved = true; }, { capture: true, passive: true });

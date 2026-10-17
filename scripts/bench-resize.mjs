@@ -13,10 +13,11 @@ const at = (i) => { const t = i / steps, k = t < 0.5 ? t * 2 : 2 - t * 2; return
 
 /* in-page probe: where the frame is, and where two fixed places on the map land on screen (through any transform on #map) */
 const probe = () => {
-  const m = window.app.map, el = document.getElementById('map'), st = document.getElementById('stage').getBoundingClientRect();
+  const m = window.app.map, pane = m.getPane('mapPane'), st = document.getElementById('stage').getBoundingClientRect();
   const fr = document.getElementById('frame').getBoundingClientRect();
-  const mt = new DOMMatrix(getComputedStyle(el).transform === 'none' ? undefined : getComputedStyle(el).transform);
-  const scr = (ll) => { const p = m.latLngToContainerPoint(ll); const q = mt.transformPoint(new DOMPoint(p.x, p.y)); return [st.left + q.x, st.top + q.y]; };
+  // any CSS translate/scale on the map pane (a resize preview) on top of where Leaflet puts things
+  const cs = getComputedStyle(pane), tr = cs.translate === 'none' ? [0, 0] : cs.translate.split(' ').map(parseFloat), k = cs.scale === 'none' ? 1 : parseFloat(cs.scale);
+  const scr = (ll) => { const p = m.latLngToContainerPoint(ll); return [st.left + (tr[0] || 0) + k * p.x, st.top + (tr[1] || 0) + k * p.y]; };
   const a = scr([0, -60]), b = scr([0, 60]);
   // map position expressed in frame units: where the two places sit relative to the frame box
   // where the frame should be for the stage's current size (desktop insets: 56 top, 84 bottom, 24 sides; 11 x 8.5 page)
