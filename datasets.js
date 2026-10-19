@@ -28,8 +28,9 @@ style.textContent = `.drop{position:absolute;inset:14px;z-index:1400;display:non
 .sub-h{margin:14px 2px 8px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .pickbtn{width:100%;background:var(--accent)}
 /* the "add to map" sheet */
-.ds{position:fixed;z-index:1150;top:86px;left:20px;width:298px;max-height:calc(100vh - 106px);max-height:calc(100dvh - 106px);overflow:auto;padding:16px;border:2px solid var(--ink);border-radius:22px;background:#fff;box-shadow:0 5px 0 var(--ink);display:none;flex-direction:column;gap:10px}
+.ds{padding:16px;border:2px solid var(--ink);border-radius:22px;background:#fff;box-shadow:0 5px 0 var(--ink);display:none;flex-direction:column;gap:10px}
 .ds.on{display:flex}
+@media (min-width:700px) and (max-width:1099px) and (min-height:500px){.ds{pointer-events:auto;max-height:calc(100dvh - 68px - 32px);overflow:auto}}
 .ds-head{display:flex;align-items:center;gap:10px}
 .ds-head .ic{flex:none;width:52px;height:52px;border:2px solid var(--ink);border-radius:14px;background:var(--paper);padding:3px}
 .ds-head .field{font-size:20px;font-weight:800;height:44px;padding:0 10px}
@@ -57,7 +58,7 @@ style.textContent = `.drop{position:absolute;inset:14px;z-index:1400;display:non
 .dl.big .nm{font-size:15px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .hollow .dl.big .nm{font-size:17px}
 @media (max-width:699px), (max-width:1099px) and (max-height:499px){
-  .ds{left:0;right:0;top:auto;bottom:0;width:auto;max-height:75dvh;border:0;border-top:2px solid var(--ink);border-radius:28px 28px 0 0;box-shadow:none;z-index:1260;padding:14px 20px calc(20px + env(safe-area-inset-bottom))}
+  .ds{position:fixed;pointer-events:auto;overflow:auto;left:0;right:0;top:auto;bottom:0;width:auto;max-height:75dvh;border:0;border-top:2px solid var(--ink);border-radius:28px 28px 0 0;box-shadow:none;z-index:1260;padding:14px 20px calc(20px + env(safe-area-inset-bottom))}
   .samples{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 body.printing .drop,body.printing .ds{display:none!important}
@@ -270,7 +271,9 @@ const stage = document.getElementById('stage');
 stage.insertAdjacentHTML('beforeend', `<div class="drop" id="dropZone" aria-hidden="true"><div class="drop-in">
   <svg width="64" height="64" viewBox="0 0 48 48"><g fill="none" stroke="#1E1B18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h17l9 9v27H12z" fill="#FFC93C"/><path d="M29 6v9h9"/><path d="M25 21v14M19 29l6 6 6-6" stroke-width="3"/></g></svg>
   <b>${i18n('Drop it on the map!')}</b><span>${i18n("We'll draw your places, lines and areas in coloring-page style.")}</span></div></div>
-<div class="ds" id="dsSheet" role="dialog" aria-label="${i18n('Your data')}"></div>`);
+`);
+/* the sheet takes the top slot in the sidebar's stack of cards (a bottom sheet on phones), so it never covers them */
+document.querySelector('aside .cards').insertAdjacentHTML('afterbegin', `<div class="ds" id="dsSheet" role="dialog" aria-label="${i18n('Your data')}"></div>`);
 const sheet = document.getElementById('dsSheet');
 const seg = (name, val, opts) => `<div class="seg" role="group" data-k="${name}">${opts.map(([v, label, ic]) => `<button type="button" data-v="${v}" aria-pressed="${v === val}">${ic || ''}${label}</button>`).join('')}</div>`;
 const IC = {
@@ -298,7 +301,7 @@ function openSheet(set, fresh) {
       <select class="field" data-k="labelKey" aria-label="${i18n('Names come from')}" ${c.labels ? '' : 'style="display:none"'}>${set.info.keys.map((k) => `<option value="${esc(k)}" ${k === c.labelKey ? 'selected' : ''}>${i18n('from “{key}”', { key: esc(k) })}</option>`).join('')}</select></div>` : ''}
     <div class="ds-acts">${fresh ? `<button type="button" class="btn" data-act="cancel">${i18n('Cancel')}</button><button type="button" class="btn go" data-act="add">${i18n('Add to map')}</button>`
       : `<button type="button" class="btn del" data-act="remove" aria-label="${i18n('Remove')}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button><button type="button" class="btn" data-act="zoom">${i18n('Zoom to it')}</button><button type="button" class="btn go" data-act="done">${i18n('Done')}</button>`}</div>`;
-  sheet.classList.add('on');
+  sheet.classList.add('on'); sheet.closest('aside').scrollTop = 0;
   if (matchMedia('(max-width:1099px)').matches) patch({ panel: '' });
 }
 function showError(msg, fname) {
