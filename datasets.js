@@ -51,11 +51,38 @@ style.textContent = `.drop{position:absolute;inset:14px;z-index:1400;display:non
 /* how custom data draws on the map */
 .dmk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;display:block}
 .dmk.pin{transform:translate(-50%,-100%)}
-.dnum{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:22px;height:22px;border:2px solid var(--ink);border-radius:50%;background:#fff;font-size:12px;font-weight:800;line-height:1;padding-top:1px}
+.dnum{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:1px 5px 0;white-space:nowrap;border:2px solid var(--ink);border-radius:50%;background:#fff;font-size:12px;font-weight:800;line-height:1;padding-top:1px}
 .dl{position:absolute;left:0;top:0;transform:translate(11px,-50%);white-space:nowrap;line-height:1;pointer-events:none}
 .dl.c{transform:translate(-50%,-50%)}
-.dl.big .nm{font-size:15px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.hollow .dl.big .nm{font-size:17px}
+.dl{--k:1;--fs:12px}
+.hollow .dl{--fs:14px}
+.dl.big{--fs:15px}
+.hollow .dl.big{--fs:17px}
+.dl.z-s{--k:.8}
+.dl.z-l{--k:1.45}
+.dl .nm,.hollow .dl .nm{font-size:calc(var(--fs) * var(--k))}
+.dl.big .nm{font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.dl.stack{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.dl.c.stack{align-items:center}
+.dl.stack .nm+.nm,.hollow .dl.stack .nm+.nm{font-size:calc(var(--fs) * var(--k) * .82)}
+/* label looks you can pick under "Write names"; Plain follows the map's Outline letters setting, the rest always look the same */
+.dl.s-bubble .nm{color:#fff;-webkit-text-stroke:1.1px var(--ink);paint-order:stroke fill;font-weight:800;letter-spacing:.04em;text-shadow:none}
+.dl.s-bubble:not(.big){--fs:14px}
+.dl.s-caps .nm{font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);-webkit-text-stroke:0;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
+.dl.s-tag{padding:4px 7px 2px;border:1.5px solid var(--ink);border-radius:8px;background:#fff}
+.dl.s-tag .nm{color:var(--ink);-webkit-text-stroke:0;text-shadow:none;font-weight:800}
+.dl.s-tag:not(.big){--fs:13px}
+.dl.s-tag:not(.c){transform:translate(14px,-50%)}
+.ds .chips{display:flex;flex-wrap:wrap;gap:6px;max-height:132px;overflow:auto;padding:2px}
+.ds .chips button{position:relative;height:32px;padding:1px 12px 0;border:2px solid var(--ink);border-radius:999px;background:#fff;font-size:14px;font-weight:700;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds .chips button[aria-pressed="true"]{background:var(--accent);padding-left:6px}
+.ds .chips b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-right:5px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;line-height:1;padding-top:1px}
+.ds .seg .aa{font-size:19px;line-height:22px;height:22px;font-weight:800;color:var(--ink)}
+.ds .seg .aa.bubble{color:#fff;-webkit-text-stroke:1.1px var(--ink);paint-order:stroke fill}
+.ds .seg .aa.caps{font-size:13px;letter-spacing:.12em}
+.ds .seg .aa.tag{font-size:13px;line-height:18px;height:20px;padding:1px 5px 0;border:1.5px solid var(--ink);border-radius:6px;background:#fff}
+.ds-lbl{display:flex;flex-direction:column;gap:6px}
+.ds-lbl .lab{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
 @media (max-width:699px), (max-width:1099px) and (max-height:499px){
   .ds{left:0;right:0;top:auto;bottom:0;width:auto;max-height:75dvh;border:0;border-top:2px solid var(--ink);border-radius:28px 28px 0 0;box-shadow:none;z-index:1260;padding:14px 20px calc(20px + env(safe-area-inset-bottom))}
   .samples{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -155,7 +182,7 @@ function analyze(features, fname, title) {
   const name = title || pretty(fname);
   const trip = /trail|route|path|trip|drive|walk|hike|run|ride|journey|tour/i.test(name);
   const why = [];
-  const cfg = { name, labelKey: nameKey, labels: false, pt: 'dot', line: trip ? 'dash' : 'solid', lw: 2.5, pw: 2, orderKey };
+  const cfg = { name, labelKeys: nameKey ? [nameKey] : [], ljoin: 'line', lstyle: 'plain', lsize: 'm', labels: false, pt: 'dot', line: trip ? 'dash' : 'solid', lw: 2.5, pw: 2, orderKey };
   const labelable = n.point + n.poly + n.line;
   cfg.labels = !!nameKey && labelable <= 60 && pts <= 40;
   if (n.point) {
@@ -182,7 +209,10 @@ function ringCenter(ring) { /* area-weighted centroid of a ring, in lng/lat */
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const f = ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]; a += f; x += (ring[j][0] + ring[i][0]) * f; y += (ring[j][1] + ring[i][1]) * f; }
   return a ? [x / (3 * a), y / (3 * a), Math.abs(a)] : [ring[0][0], ring[0][1], 0];
 }
-const lbl = (latlng, text, cls) => L.marker(latlng, { icon: L.divIcon({ className: 'lbl-wrap', html: `<div class="dl ${cls}"><span class="nm">${esc(text)}</span></div>`, iconSize: [0, 0] }), interactive: false, keyboard: false });
+/* one label: the picked columns side by side ("Joplin · EF5") or stacked, in the picked look and size */
+const lblHtml = (c, parts, cls, attrs = '') => `<div class="dl ${cls} s-${c.lstyle || 'plain'} z-${c.lsize || 'm'}${c.ljoin === 'stack' && parts.length > 1 ? ' stack' : ''}"${attrs}>` +
+  (c.ljoin === 'stack' ? parts.map((t) => `<span class="nm">${esc(t)}</span>`).join('') : `<span class="nm">${esc(parts.join(' · '))}</span>`) + '</div>';
+const lbl = (latlng, html) => L.marker(latlng, { icon: L.divIcon({ className: 'lbl-wrap', html, iconSize: [0, 0] }), interactive: false, keyboard: false });
 function render(set) {
   if (set.layer) set.layer.remove();
   const c = set.cfg, g = L.layerGroup(), big = set.info.pts <= 40;
@@ -194,26 +224,28 @@ function render(set) {
       ? { color: INK, weight: c.pw, fill: false, lineJoin: 'round', lineCap: 'round' }
       : { color: INK, weight: c.lw, fill: false, lineJoin: 'round', lineCap: 'round', dashArray: dash }
   }));
-  const nameOf = (f) => (c.labels && c.labelKey && f.properties && f.properties[c.labelKey] != null ? String(f.properties[c.labelKey]) : '');
+  const partsOf = (f) => (c.labels && f.properties ? (c.labelKeys || []).map((k) => f.properties[k]).filter((v) => v != null && v !== '').map(String) : []);
+  /* a number badge grows with its text ("EF5", "120"): push the label past it */
+  const wide = (num) => { const n = String(num).length; return c.pt === 'num' && n > 2 ? ` style="margin-left:${Math.round((n - 2) * 3.6)}px"` : ''; };
   let i = 0;
   for (const f of set.features) {
     const k = famOf(f.geometry); if (!k) continue;
-    const t = nameOf(f);
+    const t = partsOf(f).length ? partsOf(f) : null;
     if (k === 'point') {
       const list = f.geometry.type === 'Point' ? [f.geometry.coordinates] : f.geometry.coordinates;
       for (const p of list) {
         i++;
         const num = c.orderKey && f.properties && f.properties[c.orderKey] != null ? f.properties[c.orderKey] : i;
-        g.addLayer(L.marker([p[1], p[0]], { icon: L.divIcon({ className: 'lbl-wrap', html: ptHtml(c, num, big) + (t ? `<div class="dl"${c.pt === 'pin' ? ' style="margin-top:-14px"' : ''}><span class="nm">${esc(t)}</span></div>` : ''), iconSize: [0, 0] }), interactive: false, keyboard: false }));
+        g.addLayer(L.marker([p[1], p[0]], { icon: L.divIcon({ className: 'lbl-wrap', html: ptHtml(c, num, big) + (t ? lblHtml(c, t, '', c.pt === 'pin' ? ' style="margin-top:-14px"' : wide(num)) : ''), iconSize: [0, 0] }), interactive: false, keyboard: false }));
       }
     } else if (t && k === 'poly') {
       const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
       const best = polys.map((p) => ringCenter(p[0])).sort((a, b) => b[2] - a[2])[0];
-      g.addLayer(lbl([best[1], best[0]], t, 'c big'));
+      g.addLayer(lbl([best[1], best[0]], lblHtml(c, t, 'c big')));
     } else if (t && k === 'line') {
       const lines = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates;
       const longest = lines.sort((a, b) => b.length - a.length)[0], m = longest[Math.floor(longest.length / 2)];
-      g.addLayer(lbl([m[1], m[0]], t, 'c'));
+      g.addLayer(lbl([m[1], m[0]], lblHtml(c, t, 'c')));
     }
   }
   set.layer = g;
@@ -283,6 +315,22 @@ const IC = {
   dotl: `<svg viewBox="0 0 24 24"><path d="M3 12h18" stroke="${INK}" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="0.1 5.5"/></svg>`
 };
 const range = (k, v, min, max) => `<label class="slide" style="padding:0 2px"><span class="sr">${i18n('Thickness')}</span><svg width="22" height="14" aria-hidden="true"><path d="M2 7h18" stroke="${INK}" stroke-width="1"/></svg><input type="range" min="${min}" max="${max}" step="0.25" value="${v}" data-k="${k}"><svg width="22" height="14" aria-hidden="true"><path d="M3 7h16" stroke="${INK}" stroke-width="6" stroke-linecap="round"/></svg></label>`;
+/* which columns go on each label (in the order you tap them), and how the label looks */
+const AA = (cls, t) => `<span class="aa ${cls}" aria-hidden="true">${t}</span>`;
+const lblSec = (set) => {
+  const c = set.cfg, on = c.labelKeys || [];
+  return `<div class="ds-lbl"${c.labels ? '' : ' style="display:none"'}>
+    <span class="lab">${i18n('Words from')}</span>
+    <div class="chips" role="group" aria-label="${i18n('Names come from')}">${set.info.keys.map((k) => { const i = on.indexOf(k); return `<button type="button" data-key="${esc(k)}" aria-pressed="${i >= 0}">${i >= 0 && on.length > 1 ? `<b>${i + 1}</b>` : ''}${esc(k)}</button>`; }).join('')}</div>
+    ${on.length > 1 ? seg('ljoin', c.ljoin, [['line', i18n('Side by side')], ['stack', i18n('Stacked')]]) : ''}
+    <span class="lab">${i18n('Letters')}</span>
+    ${seg('lstyle', c.lstyle, [['plain', i18n('Plain'), AA('', 'Aa')], ['bubble', i18n('Bubble'), AA('bubble', 'Aa')], ['caps', i18n('Caps'), AA('caps', 'AA')], ['tag', i18n('Tag'), AA('tag', 'Aa')]])}
+    ${seg('lsize', c.lsize, [['s', i18n('Small'), AA('', '<small>A</small>')], ['m', i18n('Medium'), AA('', 'A')], ['l', i18n('Large'), AA('', '<big>A</big>')]])}
+  </div>`;
+};
+/* with Numbers, the number can come from any column (a rating, a day...) instead of the order in the file */
+const numSel = (set) => `<select class="field ds-num" data-k="orderKey" aria-label="${i18n('Numbers come from')}"${set.cfg.pt === 'num' ? '' : ' style="display:none"'}>
+  <option value="">${i18n('1, 2, 3… in order')}</option>${set.info.keys.map((k) => `<option value="${esc(k)}" ${k === set.cfg.orderKey ? 'selected' : ''}>${i18n('from “{key}”', { key: esc(k) })}</option>`).join('')}</select>`;
 let current = null, isNew = false;
 function openSheet(set, fresh) {
   current = set; isNew = fresh;
@@ -291,11 +339,10 @@ function openSheet(set, fresh) {
     <div class="ds-head">${iconSvg(set.features, set.info)}<input class="field" data-k="name" value="${esc(c.name)}" aria-label="${i18n('Name')}"></div>
     <div class="ds-found">${P('point', 'place', 'places')}${P('line', 'line', 'lines')}${P('poly', 'area', 'areas')}</div>
     <p class="ds-why">${fresh ? set.info.why.map(esc).join(' ') : i18n('Change how it looks on the page.')}</p>
-    ${n.point ? `<div class="ds-sec"><span class="lab">${i18n('Places look like')}</span>${seg('pt', c.pt, [['star', i18n('Stars'), IC.star], ['dot', i18n('Dots'), IC.dot], ['pin', i18n('Pins'), IC.pin], ['num', i18n('Numbers'), IC.num]])}</div>` : ''}
+    ${n.point ? `<div class="ds-sec"><span class="lab">${i18n('Places look like')}</span>${seg('pt', c.pt, [['star', i18n('Stars'), IC.star], ['dot', i18n('Dots'), IC.dot], ['pin', i18n('Pins'), IC.pin], ['num', i18n('Numbers'), IC.num]])}${numSel(set)}</div>` : ''}
     ${n.line ? `<div class="ds-sec"><span class="lab">${i18n('Lines')}</span>${seg('line', c.line, [['solid', i18n('Solid'), IC.solid], ['dash', i18n('Dashed'), IC.dash], ['dot', i18n('Dotted'), IC.dotl]])}${range('lw', c.lw, 1, 8)}</div>` : ''}
     ${n.poly ? `<div class="ds-sec"><span class="lab">${i18n('Outline')}</span>${range('pw', c.pw, 0.75, 6)}</div>` : ''}
-    ${set.info.keys.length ? `<div class="ds-sec"><button type="button" class="toggle" data-k="labels" aria-pressed="${c.labels}">${i18n('Write names')} <span class="sw"><i></i></span></button>
-      <select class="field" data-k="labelKey" aria-label="${i18n('Names come from')}" ${c.labels ? '' : 'style="display:none"'}>${set.info.keys.map((k) => `<option value="${esc(k)}" ${k === c.labelKey ? 'selected' : ''}>${i18n('from “{key}”', { key: esc(k) })}</option>`).join('')}</select></div>` : ''}
+    ${set.info.keys.length ? `<div class="ds-sec"><button type="button" class="toggle" data-k="labels" aria-pressed="${c.labels}">${i18n('Write names')} <span class="sw"><i></i></span></button>${lblSec(set)}</div>` : ''}
     <div class="ds-acts">${fresh ? `<button type="button" class="btn" data-act="cancel">${i18n('Cancel')}</button><button type="button" class="btn go" data-act="add">${i18n('Add to map')}</button>`
       : `<button type="button" class="btn del" data-act="remove" aria-label="${i18n('Remove')}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button><button type="button" class="btn" data-act="zoom">${i18n('Zoom to it')}</button><button type="button" class="btn go" data-act="done">${i18n('Done')}</button>`}</div>`;
   sheet.classList.add('on');
@@ -312,8 +359,19 @@ sheet.addEventListener('click', (e) => {
   const act = b.dataset.act, set = current;
   if (act === 'close') return closeSheet();
   if (!set) return;
-  if (b.parentElement.classList.contains('seg')) { set.cfg[b.parentElement.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b)); render(set); }
-  else if (b.dataset.k === 'labels') { set.cfg.labels = !set.cfg.labels; b.setAttribute('aria-pressed', set.cfg.labels); const sel = sheet.querySelector('select'); if (sel) sel.style.display = set.cfg.labels ? '' : 'none'; render(set); }
+  if (b.parentElement.classList.contains('seg')) {
+    set.cfg[b.parentElement.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+    const ns = sheet.querySelector('.ds-num'); if (ns) ns.style.display = set.cfg.pt === 'num' ? '' : 'none';
+    render(set);
+  }
+  else if (b.dataset.key != null) {
+    const ks = set.cfg.labelKeys = (set.cfg.labelKeys || []).slice(), i = ks.indexOf(b.dataset.key);
+    i >= 0 ? ks.splice(i, 1) : ks.push(b.dataset.key);
+    const sc = sheet.querySelector('.chips').scrollTop;
+    sheet.querySelector('.ds-lbl').outerHTML = lblSec(set); sheet.querySelector('.chips').scrollTop = sc;
+    render(set);
+  }
+  else if (b.dataset.k === 'labels') { set.cfg.labels = !set.cfg.labels; b.setAttribute('aria-pressed', set.cfg.labels); sheet.querySelector('.ds-lbl').style.display = set.cfg.labels ? '' : 'none'; render(set); }
   else if (act === 'cancel' || act === 'remove') { set.layer.remove(); sets.splice(sets.indexOf(set), 1); drawTiles(); closeSheet(); forget(set); }
   else if (act === 'add') { closeSheet(); drawTiles(set); save(set); patch({ featPage: 2, featView: '' }); }
   else if (act === 'done') { closeSheet(); drawTiles(); save(set); }
@@ -325,14 +383,16 @@ sheet.addEventListener('input', (e) => {
   set.cfg[k] = e.target.type === 'range' ? +e.target.value : e.target.value;
   render(set);
 });
-sheet.addEventListener('change', (e) => { if (current && e.target.dataset.k === 'labelKey') { current.cfg.labelKey = e.target.value; render(current); } });
+sheet.addEventListener('change', (e) => { if (current && e.target.dataset.k === 'orderKey') { current.cfg.orderKey = e.target.value; render(current); } });
 
 /* ---------- 6. getting a file in: drop anywhere, pick a file, or try a sample ---------- */
+/* datasets saved before labels could take several columns kept one "labelKey" */
+const upgrade = (cfg, old) => { if (!old.labelKeys) cfg.labelKeys = old.labelKey ? [old.labelKey] : cfg.labelKeys; delete cfg.labelKey; return cfg; };
 async function addText(text, fname, saved) {
   let r, info;
   try { r = readFile(text, fname); info = analyze(r.features, fname, r.title); }
   catch (e) { if (!saved) showError(e.message, fname); return; }
-  const set = { id: ++uid, key: saved ? saved.key : Date.now() + '-' + uid, text, fname, features: r.features, info, cfg: saved ? { ...info.cfg, ...saved.cfg } : info.cfg, on: saved ? saved.on : true, layer: null };
+  const set = { id: ++uid, key: saved ? saved.key : Date.now() + '-' + uid, text, fname, features: r.features, info, cfg: saved ? upgrade({ ...info.cfg, ...saved.cfg }, saved.cfg) : info.cfg, on: saved ? saved.on : true, layer: null };
   sets.push(set);
   render(set);
   if (saved) return;
