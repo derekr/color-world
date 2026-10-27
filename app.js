@@ -925,6 +925,12 @@ map.on('click', (e) => {
   finally { requestAnimationFrame(() => document.getElementById('stage').classList.add('drawn')); }
 })();
 
+/* offline + install: sw.js caches the app once the page has loaded, so it doesn't compete with the first draw */
+if ('serviceWorker' in navigator) {
+  const register = () => navigator.serviceWorker.register('/sw.js').catch((e) => console.error('service worker failed', e));
+  if (document.readyState === 'complete') register(); else addEventListener('load', register);
+}
+
 const shared = app.takeShare(); /* a share link: its settings go in before the first sync */
 /* the Datastar effect ran before the component built the map: seed the first sync from the current signals */
 app.sync(Object.fromEntries(['showCountries','wCountry','showStates','wState','showCounties','wCounty','wNation','names','capitals','tornado','mine','hollow','contNames','oceanNames','grid','equator','cAfrica','cAntarctica','cAsia','cEurope','cNorthAmerica','cOceania','cSouthAmerica','orient','tool','proj'].map((k) => [k, root[k]])));

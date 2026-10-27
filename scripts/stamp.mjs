@@ -5,7 +5,8 @@
    Without --write it stamps in memory and reports what it would change, so it is safe to run locally.
 
    - fonts/, vendor/ and data/ files, plus app.js and datasets.js, get ?v=<first 10 hex of sha256>.
-   - Literal references are rewritten in index.html, _headers (Early Hints), app.js and datasets.js (the module imports).
+   - Literal references are rewritten in index.html, _headers (Early Hints), app.js and datasets.js (the module imports)
+     and sw.js (the files it caches for offline use).
    - Paths built at runtime (data/${name}.json) go through asset() in app.js, which reads window.ASSET_V, the data/
      manifest injected into index.html here.
    - _headers switches those paths to `max-age=31536000, immutable`. That is only safe if every reference carries a
@@ -20,7 +21,7 @@ const write = process.argv.includes('--write');
 const read = (p) => readFileSync(join(root, p), 'utf8');
 const hash = (buf) => createHash('sha256').update(buf).digest('hex').slice(0, 10);
 
-const files = { 'index.html': read('index.html'), '_headers': read('_headers'), 'app.js': read('app.js'), 'datasets.js': read('datasets.js') };
+const files = { 'index.html': read('index.html'), '_headers': read('_headers'), 'app.js': read('app.js'), 'datasets.js': read('datasets.js'), 'sw.js': read('sw.js') };
 const v = {};
 for (const dir of ['fonts', 'vendor', 'data']) {
   for (const f of readdirSync(join(root, dir), { withFileTypes: true })) {
@@ -37,6 +38,7 @@ const leaves = Object.keys(v);
 /* the modules import vendor files, so stamp them first: their own hash has to cover the stamped import */
 for (const m of ['app.js', 'datasets.js']) { files[m] = stampRefs(files[m], leaves); v[m] = hash(files[m]); }
 const all = Object.keys(v);
+files['sw.js'] = stampRefs(files['sw.js'], all);
 files['index.html'] = stampRefs(files['index.html'], all)
   .replace(/<script>window\.ASSET_V=.*?<\/script>\n/, '')
   .replace('</head>', `<script>window.ASSET_V=${JSON.stringify(Object.fromEntries(leaves.filter((p) => p.startsWith('data/')).map((p) => [p, v[p]])))}</script>\n</head>`);

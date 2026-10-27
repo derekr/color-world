@@ -12,6 +12,8 @@
    - js: English → translated, for strings app.js and datasets.js pass through i18n(); injected as window.I18N.
    - names: place names, keyed like app.js keys places (c:<iso> for countries, the English name for US states);
      injected as window.PLACE_NAMES. Countries and states come from Natural Earth's name_<lang> columns.
+   Each page also gets <dir>/manifest.webmanifest: manifest.webmanifest with the translated name and description and
+   the page's own start_url, so the installed app opens in its language.
    Anything left out stays English. The build fails if a key no longer matches anything, so edits to the English
    text can't silently drop a translation, or if the locale is missing from _headers, wrangler.jsonc or worker.js. */
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
@@ -25,6 +27,7 @@ const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</
 const json = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
 
 const page = read('index.html');
+const manifest = JSON.parse(read('manifest.webmanifest'));
 const js = read('app.js') + read('datasets.js');
 const headers = read('_headers'), wrangler = read('wrangler.jsonc'), worker = read('worker.js');
 const linksFor = (path) => (headers.match(new RegExp(`^${esc(path)}\\n((?:  .*\\n?)*)`, 'm')) || [])[1]?.trim();
@@ -51,6 +54,10 @@ for (const file of readdirSync(join(root, 'locales')).filter((f) => f.endsWith('
   if (linksFor(`/${loc.dir}/`) !== linksFor('/')) errors.push(`_headers: the Early Hints for /${loc.dir}/ must match the ones for /`);
   if (!wrangler.includes(`"/${loc.dir}/*"`)) errors.push(`wrangler.jsonc: run_worker_first needs "/${loc.dir}" and "/${loc.dir}/*"`);
   if (!worker.includes(`'${loc.dir}'`)) errors.push(`worker.js: DIRS needs '${loc.dir}'`);
+  if (!out.includes('<link rel="manifest" href="/manifest.webmanifest">')) errors.push('index.html: the manifest link is missing');
+  const start = new URL(loc.url).pathname; /* en-GB is / on its own host */
+  const tr = (s) => (loc.html || {})[s] || s;
+  const man = { ...manifest, id: start, start_url: start, lang: loc.lang, name: tr(manifest.name), short_name: tr(manifest.short_name), description: tr(manifest.description) };
   if (!out.includes(`<option value="${loc.url}"`)) errors.push(`index.html: the language picker has no option for ${loc.url}`);
   out = out
     .replace(/<html lang="[^"]*"/, `<html lang="${loc.lang}"`)
@@ -58,12 +65,14 @@ for (const file of readdirSync(join(root, 'locales')).filter((f) => f.endsWith('
     .replace(/(<meta property="og:url" content=")[^"]*/, `$1${loc.url}`)
     .replace(/(<option value="[^"]*") selected>/, '$1>')
     .replace(`<option value="${loc.url}">`, `<option value="${loc.url}" selected>`)
+    .replace('<link rel="manifest" href="/manifest.webmanifest">', `<link rel="manifest" href="/${loc.dir}/manifest.webmanifest">`)
     .replace('</head>', `<script>window.I18N=${json(loc.js || {})};window.PLACE_NAMES=${json(loc.names || {})}</script>\n</head>`);
-  outputs.push([loc, out]);
+  outputs.push([loc, out, man]);
 }
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
-for (const [loc, out] of outputs) {
+for (const [loc, out, man] of outputs) {
   mkdirSync(join(root, loc.dir), { recursive: true });
   writeFileSync(join(root, loc.dir, 'index.html'), out);
+  writeFileSync(join(root, loc.dir, 'manifest.webmanifest'), JSON.stringify(man, null, 2) + '\n');
   console.log(`built ${loc.dir}/index.html (${loc.lang})`);
 }
