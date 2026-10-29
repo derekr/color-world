@@ -267,25 +267,23 @@ const app = window.app = {
     if (contChanged) { this._cands = null; if (L_.states) this.applyConts(); }
     if (L_.states) {
       s.showCountries ? L_.borders.addTo(map) : L_.borders.remove();
-      L_.borders.setStyle({ weight: s.wCountry });
       na && s.showStates ? L_.stateMesh.addTo(map) : L_.stateMesh.remove();
       s.showStates ? L_.provinces.addTo(map) : L_.provinces.remove();
       na ? L_.states.addTo(map) : L_.states.remove();
       na ? L_.nation.addTo(map) : L_.nation.remove();
-      for (const k of ['stateMesh', 'provinces']) L_[k].setStyle({ weight: s.wState });
-      L_.nation.setStyle({ weight: s.wNation });
-      L_.coast.setStyle({ weight: s.wNation });
       s.grid ? L_.grid.addTo(map) : L_.grid.remove();
       s.equator ? L_.equator.addTo(map) : L_.equator.remove();
       s.proj !== 'flat' ? L_.rim.addTo(map) : L_.rim.remove();
-      L_.rim.setStyle({ weight: s.wNation });
+      this.weigh(['borders'], s.wCountry);
+      this.weigh(['stateMesh', 'provinces'], s.wState);
+      this.weigh(['nation', 'coast', 'rim'], s.wNation);
     }
     if (s.showCounties && na && !this.countyLayer && !this.countiesLoading) this.loadCounties();
     if (this.countyLayer) {
       s.showCounties && na ? this.countyLayer.addTo(map) : this.countyLayer.remove();
-      this.countyLayer.setStyle({ weight: s.wCounty });
+      this.weigh(['countyLayer'], s.wCounty);
     }
-    if (L_.states) {
+    if (L_.states && !this.stacked()) {
       const back = (l) => map.hasLayer(l) && l.bringToBack();
       back(L_.grid); back(L_.equator);
       if (this.countyLayer && s.showCounties) back(this.countyLayer);
@@ -300,6 +298,27 @@ const app = window.app = {
     if (!prev || prev.orient !== s.orient) this.layoutFrame(!this.userMoved);
     else if (contChanged && L_.states && this.frameRect) { this.userMoved = false; this.fitTo(this.visBounds(), false); }
     this.renderLabels();
+  },
+  /* Any change to the outline SVG makes the browser repaint all of it (with the renderer's padding, about four screens' worth),
+     so sync only touches it when something changed: a line weight is set only when it differs from the drawn one, and the
+     layers are restacked only when they are out of order (a rebuilt layer lands on top). */
+  weigh(keys, w) {
+    for (const k of keys) {
+      const l = k === 'countyLayer' ? this.countyLayer : this.layers[k];
+      if (l && (l.getLayers ? l.getLayers() : [l]).some((c) => c.options.weight !== w)) l.setStyle({ weight: w });
+    }
+  },
+  stacked() {
+    const L_ = this.layers, rank = new Map();
+    const tiers = [L_.countries, L_.states, this.countyLayer, L_.equator, L_.grid, null, L_.borders, L_.provinces, L_.stateMesh, L_.coast, L_.nation];
+    tiers.forEach((l, i) => { if (l && map.hasLayer(l)) (l.eachLayer ? l.eachLayer((c) => c._path && rank.set(c._path, i)) : l._path && rank.set(l._path, i)); });
+    let last = 0;
+    for (const p of rank.keys().next().value?.parentNode?.children || []) {
+      const r = rank.has(p) ? rank.get(p) : 5; /* paths of other layers sit between the fills and the lines */
+      if (r < last) return false;
+      last = r;
+    }
+    return true;
   },
   /* swap the map shape: every layer re-projects on viewreset, then the view refits */
   setProjection(shape) {
@@ -729,6 +748,16 @@ const fastClick = (() => {
     if (t && Date.now() - t < 1500) { stamp.delete(b); e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
 })();
+
+/* A line weight repaints the whole outline SVG, which the renderer's padding makes about four screens big (so a pan shows
+   drawn map). While a weight slider is held the SVG shrinks to the screen, so each step repaints a quarter as much; the
+   padding comes back on release. */
+{
+  const svg = map.options.renderer, pad = svg.options.padding;
+  const setPad = (p) => { if (svg.options.padding !== p && svg._map) { svg.options.padding = p; svg._update(); } };
+  document.addEventListener('pointerdown', (e) => { if (e.target.matches && e.target.matches('.card input[type=range]')) setPad(0); }, true);
+  for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, () => setPad(pad), true);
+}
 
 /* native-print case only (e.g. browser menu print); our own flows manage printing themselves */
 window.addEventListener('beforeprint', () => { if (!app.busy) app.preparePrint(); });
